@@ -30,7 +30,7 @@ description: "把 GitHub 收藏（Star）列表生成一个可搜索、可分类
    ```bash
    python3 <skill目录>/scripts/gen-index.py data/starred_full.json docs/index.html
    ```
-   输出自包含 HTML（内联 CSS/JS），支持：按分类筛选、按语言筛选、关键字搜索、中文描述优先（若 `desc_zh` 映射存在）。
+   输出自包含 HTML（内联 CSS/JS），支持：按分类筛选、关键字搜索、中文描述优先（若 `desc_zh` 映射存在）。
 
 3. **（可选）中文描述翻译**：如果已有 `data/desc_zh.json`（`repo 全名 → 中文简介`），传给 `gen-index.py` 自动覆盖英文描述。
 

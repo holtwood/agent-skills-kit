@@ -38,18 +38,29 @@ cd ~/agent-skills-zh
 
 > 想给某个具体项目用？直接把对应 `skills/<name>/` 目录复制进项目的 `.opencode/skills/` 或 `.claude/skills/` 即可。
 
+### 环境要求
+
+- **系统**：Linux / WSL（`wsl-capture` 需 WSL + `powershell.exe`；macOS 部分可用但需 `coreutils`）
+- **bash ≥ 4.3**（`install.sh` 使用 `mapfile -d`；macOS 请用 Homebrew 的 bash）
+- **依赖按需**：截图类需要系统 Chromium；GitHub 类需要 [gh CLI](https://cli.github.com/) 已登录；生成类需要 Python 3
+
 ## 快速上手
 
 ```bash
 # 截图 → 套框 一条龙
-skills/wsl-capture/scripts/capture.sh browser https://example.com -o ~/shots/page.png
-skills/shotframe/scripts/frame.js --input ~/shots/page.png --preset macos --output ~/shots/page-macos.png
+bash skills/wsl-capture/scripts/capture.sh browser https://example.com -o ~/shots/page.png
+node skills/shotframe/scripts/frame.js --input ~/shots/page.png --preset macos --output ~/shots/page-macos.png
 
-# Star 收藏站（参考 page-stars 模式）
-skills/gh-stars/scripts/init-stars-site.sh my-owner
+# Star 收藏站（拉取 → 生成索引，参考 page-stars 模式）
+bash skills/gh-stars/scripts/fetch-stars.sh holtwood data/starred_full.json
+python3 skills/gh-stars/scripts/gen-index.py data/starred_full.json docs/index.html --title "我的收藏"
 
-# 仓库导航站（参考 page-repos 模式）
-skills/project-hub/scripts/init-hub.sh my-owner
+# 仓库导航站（拉取 → 生成导航页，参考 page-repos 模式）
+bash skills/project-hub/scripts/fetch-repos.sh holtwood data/repos.json
+python3 skills/project-hub/scripts/gen-hub.py data/repos.json docs/index.html --title "我的项目"
+
+# 或部署为 GitHub Pages（以本仓库为例）
+bash skills/gh-pages/scripts/setup-pages.sh holtwood/agent-skills-zh
 ```
 
 ## 新增 Skill

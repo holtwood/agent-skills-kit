@@ -5,7 +5,7 @@
 # 用法:
 #   fetch-repos.sh <owner> <out.json> [--include-forks]
 #
-set -uo pipefail
+set -euo pipefail
 
 OWNER="${1:?用法: fetch-repos.sh <owner> <out.json> [--include-forks]}"
 OUT="${2:-repos.json}"
@@ -40,5 +40,5 @@ gh repo list "${OWNER}" --limit 1000 ${FLAGS} --json \
   })' \
   > "${OUT}"
 
-COUNT="$(python3 -c "import json,sys; print(len(json.load(open('${OUT}'))))")"
+COUNT="$(python3 -c 'import json,sys; print(len(json.load(sys.stdin)))' < "${OUT}")"
 echo "✅ 已保存 ${COUNT} 个仓库到 ${OUT}"

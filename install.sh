@@ -9,6 +9,13 @@
 #
 set -euo pipefail
 
+# install.sh 使用了 mapfile -d ''，需要 bash >= 4.3
+if (( BASH_VERSINFO[0] < 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] < 3) )); then
+  echo "✗ install.sh 需要 bash ≥ 4.3（当前 $(bash --version | head -1)）" >&2
+  echo "  macOS 请用 Homebrew 安装: brew install bash，并以 /usr/local/bin/bash 运行" >&2
+  exit 1
+fi
+
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OPENCODE_DIR="${OPENCODE_SKILLS_DIR:-${HOME}/.config/opencode/skills}"
 CLAUDE_DIR="${CLAUDE_SKILLS_DIR:-${HOME}/.claude/skills}"

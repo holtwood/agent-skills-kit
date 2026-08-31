@@ -5,7 +5,7 @@
 # 用法:
 #   setup-pages.sh <owner/repo> [--mode auto|workflow|branch] [--dir docs] [--branch main]
 #
-set -uo pipefail
+set -euo pipefail
 
 if [[ $# -lt 1 || -z "${1:-}" ]]; then
   echo "用法: setup-pages.sh <owner/repo> [--mode auto|workflow|branch] [--dir docs] [--branch main]" >&2
@@ -26,13 +26,25 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+case "${MODE}" in
+  auto|workflow|branch) ;;
+  *) echo "✗ --mode 必须是 auto|workflow|branch，收到: ${MODE}" >&2; exit 2 ;;
+esac
+
 command -v gh >/dev/null 2>&1 || { echo "✗ 需要 gh CLI，请先安装: https://cli.github.com/" >&2; exit 1; }
 gh auth status >/dev/null 2>&1 || { echo "✗ gh 未登录，请先 gh auth login" >&2; exit 1; }
 
-info="$(gh repo view "${REPO}" --json defaultBranchRef,isFork,hasPages --jq '{branch: .defaultBranchRef.name, fork: .isFork, pages: .hasPages}')" || exit 1
-DEFAULT_BRANCH="$(echo "${info}" | gh api - --jq '.branch')"
-HAS_PAGES="$(echo "${info}" | gh api - --jq '.pages')"
+# 仓库基本信息（gh api 直接取，避免 gh repo view --json 字段兼容问题）
+REPO_JSON="$(gh api "repos/${REPO}" --jq '{default_branch, fork: .fork}')" || exit 1
+DEFAULT_BRANCH="$(echo "${REPO_JSON}" | python3 -c 'import json,sys; print(json.load(sys.stdin)["default_branch"])')" || exit 1
 BRANCH="${BRANCH:-${DEFAULT_BRANCH}}"
+
+# 判断 Pages 是否已开启（GET /pages 返回 200 即已开，404 即未开）
+if gh api "repos/${REPO}/pages" --jq '.status' >/dev/null 2>&1; then
+  HAS_PAGES="true"
+else
+  HAS_PAGES="false"
+fi
 
 echo "📦 ${REPO} | 默认分支: ${DEFAULT_BRANCH} | Pages 已开: ${HAS_PAGES}"
 
@@ -62,7 +74,9 @@ WORKFLOW_SHA="$(gh api "repos/${REPO}/contents/${WORKFLOW_PATH}" --jq '.sha' 2>/
 if [[ "${MODE_NAME}" == "workflow" ]]; then
   # 写一个标准 Pages workflow（如果不存在）
   if [[ -z "${WORKFLOW_SHA}" ]]; then
-    cat > /tmp/gh-pages-workflow.yml <<'EOF'
+    TMP_WF="$(mktemp)"
+    trap 'rm -f "${TMP_WF}"' EXIT
+    cat > "${TMP_WF}" <<'EOF'
 name: Deploy to GitHub Pages
 on:
   push:
@@ -100,7 +114,7 @@ jobs:
       - id: deployment
         uses: actions/deploy-pages@v4
 EOF
-    CONTENT="$(base64 -w0 < /tmp/gh-pages-workflow.yml)"
+    CONTENT="$(base64 < "${TMP_WF}" | tr -d '\n')"
     gh api "repos/${REPO}/contents/${WORKFLOW_PATH}" \
       -X PUT -f message="chore: enable GitHub Pages via Actions" \
       -f content="${CONTENT}" >/dev/null && echo "✅ workflow 已写入: ${WORKFLOW_PATH}"
@@ -119,11 +133,11 @@ else
   if [[ "${HAS_PAGES}" == "true" ]]; then
     gh api "repos/${REPO}/pages" -X PUT \
       -f build_type=legacy \
-      -f source[branch]="${BRANCH}" -f source[path]="/${DIR}" >/dev/null
+      -f "source[branch]=${BRANCH}" -f "source[path]=/${DIR}" >/dev/null
   else
     gh api "repos/${REPO}/pages" -X POST \
       -f build_type=legacy \
-      -f source[branch]="${BRANCH}" -f source[path]="/${DIR}" >/dev/null
+      -f "source[branch]=${BRANCH}" -f "source[path]=/${DIR}" >/dev/null
   fi
   echo "✅ Pages 源已设为 ${BRANCH} 分支 /${DIR} 目录"
 fi

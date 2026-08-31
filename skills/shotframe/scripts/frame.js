@@ -41,29 +41,41 @@ function pngSize(buf) {
 
 // ---------- Chromium 探测 ----------
 function findChromium(forced) {
-  if (forced && fs.existsSync(forced)) return forced;
+  if (forced && typeof forced === 'string' && fs.existsSync(forced)) return forced;
   const candidates = [
     process.env.SHOTFRAME_CHROMIUM,
     process.env.CHROME_PATH,
-    path.join(os.homedir(), '.cache', 'ms-playwright', 'chromium-1234', 'chrome-linux64', 'chrome'),
+    ...globPlaywrightChromium(),
     '/usr/bin/chromium',
     '/usr/bin/chromium-browser',
     '/usr/bin/google-chrome',
     '/usr/bin/google-chrome-stable',
     '/snap/bin/chromium',
-    '/mnt/c/Program Files/Google/Chrome/Application/chrome.exe',
   ];
   for (const c of candidates) {
     if (c && fs.existsSync(c)) return c;
   }
   // PATH 里找
   for (const dir of (process.env.PATH || '').split(':')) {
-    for (const name of ['chromium', 'chromium-browser', 'google-chrome', 'chrome', 'chrome.exe']) {
+    for (const name of ['chromium', 'chromium-browser', 'google-chrome', 'chrome']) {
       const p = path.join(dir, name);
       if (fs.existsSync(p)) return p;
     }
   }
   return null;
+}
+
+function globPlaywrightChromium() {
+  const cache = path.join(os.homedir(), '.cache', 'ms-playwright');
+  let out = [];
+  try {
+    for (const ver of fs.readdirSync(cache)) {
+      if (!ver.startsWith('chromium-')) continue;
+      const exe = path.join(cache, ver, 'chrome-linux64', 'chrome');
+      if (fs.existsSync(exe)) out.push(exe);
+    }
+  } catch (_) { /* cache 不存在时忽略 */ }
+  return out;
 }
 
 // ---------- HTML 模板 ----------
@@ -160,6 +172,11 @@ function buildHtml({ imgDataUri, imgW, imgH, preset, title, url, background, pad
 // ---------- 主流程 ----------
 function main() {
   const args = parseArgs(process.argv.slice(2));
+
+  if (typeof args.input !== 'string' || typeof args.output !== 'string') {
+    console.error('用法: node frame.js --input <png> --preset <browser|macos> --output <png> [--title T] [--url U] [--background light|dark]');
+    process.exit(2);
+  }
   const input = args.input;
   const output = args.output;
   const preset = args.preset || 'browser';
@@ -168,10 +185,6 @@ function main() {
   const background = args.background || 'light';
   const pad = Number(args.padding) || 56;
 
-  if (!input || !output) {
-    console.error('用法: node frame.js --input <png> --preset <browser|macos> --output <png> [--title T] [--url U] [--background light|dark]');
-    process.exit(2);
-  }
   if (!fs.existsSync(input)) {
     console.error(`输入文件不存在: ${input}`);
     process.exit(2);
@@ -215,12 +228,12 @@ function main() {
     fs.rmSync(tmpHtml, { force: true });
   }
 
-  const outStat = fs.statSync(output);
-  if (!outStat.size) {
-    console.error('输出文件为空，渲染失败');
+  if (!fs.existsSync(output) || !fs.statSync(output).size) {
+    console.error('输出文件为空或未生成，渲染失败');
     process.exit(1);
   }
-  console.log(`✅ ${preset} 框架完成: ${output} (${Math.round(outStat.size / 1024)} KB, ${cssW * 2}x${cssH * 2})`);
+  const outSize = fs.statSync(output).size;
+  console.log(`✅ ${preset} 框架完成: ${output} (${Math.round(outSize / 1024)} KB, ${cssW * 2}x${cssH * 2})`);
 }
 
 main();

@@ -22,4 +22,5 @@ gh api --paginate -H 'Accept: application/vnd.github.star+json' \
   '.[] | {starred_at: .starred_at} + (.repo | {id, node_id, full_name, description, language, topics, stargazers_count, fork, archived, html_url})' \
   > "${OUT}"
 
-echo "✅ 已保存 $(wc -l < "${OUT}") 个 Star 到 ${OUT}"
+COUNT="$(python3 -c 'import sys; print(sum(1 for _ in sys.stdin))' < "${OUT}")"
+echo "✅ 已保存 ${COUNT} 个 Star 到 ${OUT}"

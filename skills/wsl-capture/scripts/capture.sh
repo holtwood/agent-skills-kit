@@ -28,16 +28,6 @@ find_chromium() {
   command -v chromium chromium-browser google-chrome chrome 2>/dev/null | head -1
 }
 
-# ---------- Windows 截图（PowerShell interop，.NET System.Drawing） ----------
-win_capture() {
-  # $1 = PowerShell 截图代码（返回图片并保存到 $2 的 Windows 路径）
-  local script="$1"
-  local wsl_path="$2"
-  local win_path
-  win_path="$(wslpath -w "${wsl_path}" 2>/dev/null || echo "${wsl_path}")"
-  powershell.exe -NoProfile -STA -Command "Add-Type -AssemblyName System.Drawing; ${script} | ConvertTo-Json -Compress" >/dev/null 2>&1 || true
-}
-
 # ---------- 模式: browser ----------
 cmd_browser() {
   local url="" out="" width="1440" full_page=0
@@ -61,7 +51,7 @@ cmd_browser() {
   fi
 
   local flag_full=""
-  [[ "${full_page}" -eq 1 ]] && flag_full="--screenshot --full-page"
+  [[ "${full_page}" -eq 1 ]] && flag_full="--full-page"
   # shellcheck disable=SC2086
   "${chromium}" --headless=new --disable-gpu --no-sandbox --hide-scrollbars \
     --window-size="${width},1200" --screenshot="${out}" ${flag_full} \
@@ -95,7 +85,7 @@ cmd_screen() {
       \$bmp = New-Object System.Drawing.Bitmap \$b.Width, \$b.Height;
       \$g = [System.Drawing.Graphics]::FromImage(\$bmp);
       \$g.CopyFromScreen(\$b.X, \$b.Y, 0, 0, \$bmp.Size);
-      \$bmp.Save('${win_path}', [System.Drawing.Imaging.ImageFormat]::Png)"
+\$bmp.Save('${win_path_ps}', [System.Drawing.Imaging.ImageFormat]::Png)"
     # 注意 PATH 不能带 \r\n 污染；win_path 由 wslpath 保证
     if powershell.exe -NoProfile -STA -Command "${ps_code}" >/dev/null 2>&1 && [[ -s "${out}" ]]; then
       echo "✅ Windows 桌面截图: ${out}"
@@ -122,7 +112,12 @@ cmd_screen() {
 
 # ---------- 模式: window ----------
 cmd_window() {
-  local query="$1"; shift
+  local query="${1:-}"
+  if [[ -z "${query}" ]]; then
+    echo "用法: capture.sh window <标题或进程名> [-o out.png]" >&2
+    exit 2
+  fi
+  shift
   local out=""
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -130,13 +125,15 @@ cmd_window() {
       *) echo "未知参数: $1" >&2; exit 2 ;;
     esac
   done
-  [[ -z "${query}" ]] && { echo "用法: capture.sh window <标题或进程名> [-o out.png]" >&2; exit 2; }
   out="${out:-${OUT_DIR}/window-$(date +%H%M%S).png}"
 
   command -v powershell.exe >/dev/null 2>&1 || { echo "✗ window 模式需要 Windows 侧 PowerShell" >&2; return 1; }
 
   local win_path
   win_path="$(wslpath -w "${out}" 2>/dev/null || echo "${out}")"
+  # PowerShell 单引号字符串内转义单引号（' -> ''），防止窗口标题含引号时坏脚本
+  local query_ps="${query//\'/\'\'}"
+  local win_path_ps="${win_path//\'/\'\'}"
   # 按标题找窗口 → 用 Win32 API 截到前台应用窗口
   local ps_code="Add-Type -AssemblyName System.Drawing;
     Add-Type @'
@@ -149,7 +146,7 @@ cmd_window() {
       public struct RECT { public int L, T, R, B; }
     }
 '@;
-    \$h = [W]::FindWindow(\$null, '${query}');
+    \$h = [W]::FindWindow(\$null, '${query_ps}');
     if (\$h -eq [IntPtr]::Zero) { throw 'window not found' };
     [W]::SetForegroundWindow(\$h) | Out-Null;
     Start-Sleep -Milliseconds 300;
@@ -203,11 +200,10 @@ cmd_clip() {
     if wl-paste --type image/bmp > "${out}.bmp" 2>/dev/null && [[ -s "${out}.bmp" ]]; then
       if command -v convert >/dev/null 2>&1; then
         convert "${out}.bmp" "${out}" && rm -f "${out}.bmp" && { echo "✅ 剪贴板截图 (BMP 已转换): ${out}"; return 0; }
-      else
-        mv "${out}.bmp" "${out}"
-        echo "✅ 剪贴板截图 (BMP，未转换): ${out}" >&2
-        return 0
       fi
+      echo "⚠ 剪贴板是 BMP 且无 ImageMagick 可转换，已保留原始文件: ${out}.bmp（内容仍是 BMP，供后续转换）" >&2
+      echo "${out}.bmp"
+      return 0
     fi
   fi
 

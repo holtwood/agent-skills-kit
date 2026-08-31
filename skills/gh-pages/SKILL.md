@@ -22,7 +22,8 @@ description: "为 GitHub 仓库配置 GitHub Pages：自动探测仓库构建工
 
 1. **探测仓库情况**：
    ```bash
-   gh repo view <owner/repo> --json defaultBranchRef,isFork,hasPages --jq '{branch: .defaultBranchRef.name, fork: .isFork, pages: .hasPages}'
+   gh repo view <owner/repo> --json defaultBranchRef,isFork --jq '{branch: .defaultBranchRef.name, fork: .isFork}'
+   gh api repos/<owner/repo>/pages --jq .status   # 200=已开 Pages，404=未开
    ```
 2. **探测构建工具**（决定用「Workflow 部署」还是「分支部署」）：
    - 有 `package.json` / `vite.config.*` / `next.config.*` → 构建型（Vite / Next）
@@ -37,7 +38,7 @@ description: "为 GitHub 仓库配置 GitHub Pages：自动探测仓库构建工
 ## 命令契约
 
 ```bash
-bash <skill目录>/scripts/setup-pages.sh <owner/repo> [--mode auto|workflow|branch] [--dir docs]
+bash <skill目录>/scripts/setup-pages.sh <owner/repo> [--mode auto|workflow|branch] [--dir docs] [--branch main]
 ```
 
 | 参数 | 说明 | 默认 |

@@ -41,19 +41,18 @@ bash <skill目录>/scripts/capture.sh <mode> [参数...]
 **screen 模式**（从高到低）：
 
 1. `powershell.exe` interop（.NET `System.Drawing` 全屏捕获）——能截 Windows 桌面
-2. WSLg Wayland（`gdbus` GNOME 截图 / `grim`）——截 WSLg 内 Linux 应用
+2. WSLg Wayland（`grim`）——截 WSLg 内 Linux 应用
 3. X11（`scrot` / ImageMagick `import`）——截 X 输出
 
 **browser 模式**：
 
 1. 系统 Chromium 无头直接截图（`--headless=new --screenshot`）
 2. Playwright 缓存中的 Chromium
-3. Windows 侧 Chrome（`/mnt/c/.../chrome.exe`）
 
 **clip 模式**：
 
-1. `wl-paste`（WSLg，自动把 BMP 转 PNG）
-2. `xclip` / `xsel`（X11）
+1. `powershell.exe` 直接读 Windows 剪贴板（绕过 WSLg 的 BMP 坏图问题）
+2. `wl-paste`（WSLg，PNG 直取；BMP 用 ImageMagick 转换）
 
 ## 工作流
 

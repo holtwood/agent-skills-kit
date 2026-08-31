@@ -39,7 +39,6 @@ node <skill目录>/scripts/frame.js \
 | `--background` | 背景：`light` / `dark` | `light` |
 | `--padding` | 窗口四周留白（px） | `56` |
 | `--chromium` | 指定 Chromium 可执行文件路径 | 自动探测 |
-| `--full-page` | 整页截取（输入为整页图时自动适配） | 自动 |
 
 ## 预设说明
 
@@ -53,7 +52,7 @@ node <skill目录>/scripts/frame.js \
    - Web 应用 / 仪表盘 → `browser`（除非用户点名 macOS）
    - 桌面应用 → `macos`
 3. **渲染**：输出路径用描述性文件名（如 `pricing-browser.png`）。按需加 `--title` / `--url`。默认浅色背景，若截图本身是深色 UI 可换 `--background dark`。
-4. **验证**：确认输出文件存在且非空（不小于输入文件的一半、且含非纯白像素），把结果路径汇报给用户。
+4. **验证**：确认输出文件存在且非空，把结果路径汇报给用户。
 5. 结果图可直接用于 README / 文档（配 `./docs/screenshots/xxx.png` 相对路径）。
 
 ## 示例
