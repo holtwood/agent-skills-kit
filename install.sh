@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 #
-# shotkit 一键安装：把 skills 链接到 opencode 与 Claude Code
+# agent-skills-zh 一键安装：把指定 skill 链接到 opencode 与 Claude Code
+#
+# 用法:
+#   ./install.sh                 # 安装全部 skill
+#   ./install.sh shotframe       # 只安装指定 skill
+#   ./install.sh shotframe gh-stars
 #
 set -euo pipefail
 
@@ -8,23 +13,30 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OPENCODE_DIR="${OPENCODE_SKILLS_DIR:-${HOME}/.config/opencode/skills}"
 CLAUDE_DIR="${CLAUDE_SKILLS_DIR:-${HOME}/.claude/skills}"
 
-install_into() {
-  local target="$1"
+requested=("$@")
+if [[ ${#requested[@]} -eq 0 ]]; then
+  mapfile -d '' requested < <(find "${REPO_DIR}/skills" -mindepth 1 -maxdepth 1 -type d -print0)
+fi
+
+link_one() {
+  local target="$1" name="$2" src="$3"
   mkdir -p "${target}"
-  for skill in "${REPO_DIR}"/skills/*/; do
-    local name
-    name="$(basename "${skill}")"
-    local link="${target}/${name}"
-    if [[ -L "${link}" || -e "${link}" ]]; then
-      echo "  · ${link} 已存在，跳过"
-    else
-      ln -s "${skill%/}" "${link}"
-      echo "  · ${link} ← ${skill%/}"
-    fi
-  done
+  local link="${target}/${name}"
+  if [[ -L "${link}" || -e "${link}" ]]; then
+    echo "  · ${link} 已存在，跳过"
+  else
+    ln -s "${src}" "${link}"
+    echo "  · ${link} ← ${src}"
+  fi
 }
 
-echo "安装 shotkit skills →"
-install_into "${OPENCODE_DIR}"
-install_into "${CLAUDE_DIR}"
-echo "完成。重启 opencode / Claude Code 后即可使用：shotframe、wsl-capture"
+for name in "${requested[@]}"; do
+  name="$(basename "${name}")"
+  local_src="${REPO_DIR}/skills/${name}"
+  [[ -d "${local_src}" ]] || { echo "✗ 找不到 skill: ${name}" >&2; exit 1; }
+  echo "安装 ${name} →"
+  link_one "${OPENCODE_DIR}" "${name}" "${local_src}"
+  link_one "${CLAUDE_DIR}" "${name}" "${local_src}"
+done
+
+echo "完成。重启 opencode / Claude Code 后即可使用。"

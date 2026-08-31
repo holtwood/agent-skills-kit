@@ -1,0 +1,161 @@
+#!/usr/bin/env python3
+"""
+project-hub — 把仓库列表生成自包含导航主页（Python 标准库，零依赖）
+
+用法:
+  gen-hub.py <repos.json> <out.html> [--desc-zh desc_zh.json] [--title 标题] [--owner 用户名] [--group-by language|type]
+"""
+import argparse
+import html
+import json
+
+LANG_COLORS = {
+    'JavaScript': '#f1e05a', 'TypeScript': '#3178c6', 'Python': '#3572A5',
+    'Go': '#00ADD8', 'Rust': '#dea584', 'Shell': '#89e051', 'C': '#555555',
+    'C++': '#f34b7d', 'Vue': '#41b883', 'React': '#61dafb', 'HTML': '#e34c26',
+    'CSS': '#563d7c', 'Jupyter Notebook': '#DA5B0B', 'PHP': '#4F5D95', 'Ruby': '#701516',
+    'Java': '#b07219', 'Kotlin': '#A97BFF', 'Swift': '#F05138', 'Dart': '#00B4AB',
+}
+
+def esc(s):
+    return html.escape(str(s) if s is not None else '', quote=True)
+
+def load_desc(path):
+    if not path:
+        return {}
+    try:
+        with open(path, encoding='utf-8') as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument('repos_json')
+    ap.add_argument('out_html')
+    ap.add_argument('--desc-zh')
+    ap.add_argument('--title', default='我的项目')
+    ap.add_argument('--owner', default='')
+    ap.add_argument('--group-by', default='type', choices=['type', 'language'])
+    args = ap.parse_args()
+
+    with open(args.repos_json, encoding='utf-8') as f:
+        repos = json.load(f)
+
+    desc_zh = load_desc(args.desc_zh)
+
+    def group_of(r):
+        if r.get('archived'):
+            return '归档'
+        if r.get('fork'):
+            return 'Fork'
+        if args.group_by == 'language':
+            return r.get('language') or '其他'
+        name = r.get('name', '')
+        if name.startswith('awesome-') or 'awesome' in name:
+            return 'Awesome 合集'
+        if name.startswith('page-') or name in {'index', 'home', 'homepage'}:
+            return '个人站点'
+        return '项目'
+
+    grouped = {}
+    for r in repos:
+        r = dict(r)
+        if desc_zh and r.get('name') in desc_zh:
+            r['description'] = desc_zh[r['name']]
+        grouped.setdefault(group_of(r), []).append(r)
+
+    order = sorted(grouped.keys(), key=lambda g: {'个人站点': 0, '项目': 1, 'Awesome 合集': 2, 'Fork': 3, '归档': 4}.get(g, 5))
+    total = len(repos)
+
+    sections = []
+    for group in order:
+        items = sorted(grouped[group], key=lambda x: x.get('stargazersCount') or 0, reverse=True)
+        cards = []
+        for r in items:
+            lang = r.get('language') or ''
+            color = LANG_COLORS.get(lang, '#94a3b8')
+            desc = r.get('description') or '（无描述）'
+            stars = r.get('stargazersCount') or 0
+            updated = (r.get('updatedAt') or '')[:10]
+            badges = ''
+            if r.get('fork'):
+                badges += '<span class="b fork">Fork</span>'
+            if r.get('archived'):
+                badges += '<span class="b arc">归档</span>'
+            cards.append(f'''<a class="card" href="{esc(r.get('url') or ('https://github.com/' + esc(r.get('name', ''))))}" target="_blank" rel="noopener">
+  <div class="head"><span class="name">{esc(r['name'])}</span>{badges}</div>
+  <p class="desc">{esc(desc)}</p>
+  <div class="meta">
+    <span class="lang"><i style="background:{color}"></i>{esc(lang)}</span>
+    <span class="stars">★ {stars:,}</span>
+    <span class="time">{updated}</span>
+  </div>
+</a>''')
+        sections.append(f'<h2 class="grp">{esc(group)} <span class="n">{len(items)}</span></h2><div class="grid">{"".join(cards)}</div>')
+
+    html_page = f'''<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{esc(args.title)}</title>
+<style>
+  * {{ margin:0; padding:0; box-sizing:border-box; }}
+  body {{ font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;
+          background:#f8fafc; color:#0f172a; }}
+  header {{ background:linear-gradient(135deg,#0f172a,#1e3a5f); color:#fff; padding:40px 24px; }}
+  header h1 {{ font-size:24px; }}
+  header p {{ color:#94a3b8; font-size:13px; margin-top:8px; }}
+  .wrap {{ max-width:1080px; margin:0 auto; padding:0 24px; }}
+  input[type=search] {{ width:100%; margin:20px 0 8px; padding:10px 14px; border-radius:10px;
+          border:1px solid #cbd5e1; font-size:14px; background:#fff; }}
+  h2.grp {{ font-size:16px; margin:28px 0 12px; }}
+  h2.grp .n {{ color:#94a3b8; font-size:12px; }}
+  .grid {{ display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:12px; }}
+  .card {{ display:block; background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:14px;
+          text-decoration:none; color:inherit; transition:.15s; }}
+  .card:hover {{ transform:translateY(-2px); box-shadow:0 8px 24px rgba(15,23,42,.08); border-color:#f97316; }}
+  .head {{ display:flex; justify-content:space-between; align-items:center; gap:8px; }}
+  .name {{ font-weight:600; font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }}
+  .b {{ font-size:10px; padding:2px 6px; border-radius:999px; flex-shrink:0; }}
+  .b.fork {{ background:#f1f5f9; color:#64748b; }}
+  .b.arc {{ background:#fef2f2; color:#ef4444; }}
+  .desc {{ color:#64748b; font-size:12.5px; margin:8px 0; line-height:1.5;
+          display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }}
+  .meta {{ display:flex; align-items:center; gap:10px; color:#94a3b8; font-size:11.5px; }}
+  .lang {{ display:flex; align-items:center; gap:5px; }}
+  .lang i {{ width:10px; height:10px; border-radius:50%; }}
+  .stars {{ color:#f97316; }}
+  .time {{ margin-left:auto; }}
+  footer {{ text-align:center; color:#94a3b8; font-size:12px; padding:32px 0; }}
+</style></head><body>
+<header><div class="wrap">
+  <h1>🗂️ {esc(args.title)}</h1>
+  <p>{esc(args.owner) if args.owner else ''} · 共 {total} 个仓库 · 由 project-hub 生成</p>
+</div></header>
+<div class="wrap">
+  <input type="search" id="q" placeholder="搜索仓库名 / 描述...">
+  {"".join(sections)}
+</div>
+<footer>Generated by <a href="https://github.com/holtwood/agent-skills-zh">agent-skills-zh/project-hub</a></footer>
+<script>
+  document.getElementById('q').oninput = function () {{
+    const kw = this.value.trim().toLowerCase();
+    document.querySelectorAll('.card').forEach(c => {{
+      c.style.display = (!kw || c.textContent.toLowerCase().includes(kw)) ? '' : 'none';
+    }});
+    document.querySelectorAll('h2.grp').forEach(h => {{
+      const visible = [...h.nextElementSibling.querySelectorAll('.card')].some(c => c.style.display !== 'none');
+      h.style.display = visible ? '' : 'none';
+    }});
+  }};
+</script>
+</body></html>'''
+
+    import os
+    os.makedirs(os.path.dirname(os.path.abspath(args.out_html)), exist_ok=True)
+    with open(args.out_html, 'w', encoding='utf-8') as f:
+        f.write(html_page)
+    print(f'✅ 已生成 {args.out_html}（{total} 个仓库，{len(order)} 个分组）')
+
+if __name__ == '__main__':
+    main()

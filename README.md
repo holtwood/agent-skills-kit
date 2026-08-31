@@ -1,83 +1,69 @@
-# shotkit · AI 开发者的 WSL 截图工作台
+# agent-skills-zh · 中文社区 Agent Skills 合集
 
-> 面向中文开发者的「截图全流程」Agent Skill 集合：**捕获 → 美化 → 输出**，一条龙。
+> 面向中文开发者的可安装 Agent Skill 集合：**捕获 → 美化 → 发布 → 展示**，覆盖个人开发者的完整「作品展示」链路。
+> 兼容 opencode / Claude Code / Codex 等主流 AI 编程工具。
 
-在 WSL 里用 AI 编程工具（opencode / Claude Code / Codex）的开发者，截图一直是个老大难：
+在 GitHub 上搜「agent skills」，前排全是英文巨无霸（addyosmani ★91k、vercel-labs ★30k）。**中文社区还是一片蓝海**——这个仓库就是为中文开发者准备的：全中文文档、中文语义触发、开箱即用。
 
-- **截不了 Windows 桌面**：Linux 的 `scrot`/`import` 只认识 X 输出，截不到 Windows 屏幕
-- **剪贴板粘贴坏图**：WSLg 把图片转成特殊 BMP，AI 工具直接报「不支持的图片格式」
-- **截图不好看**：README / 文档里的裸截图缺乏产品感
+## Skill 一览
 
-shotkit 把这些痛点一次性解决，提供两个配套 skill：
-
-| Skill | 作用 | 说明 |
+| Skill | 能力 | 场景 |
 | --- | --- | --- |
-| [`wsl-capture`](./skills/wsl-capture/) | 捕获 | 从 WSL 截 Windows 桌面 / 窗口 / 浏览器页面，多后端自动降级 |
-| [`shotframe`](./skills/shotframe/) | 美化 | 给截图套 **浏览器边框** 或 **macOS 窗口框**，零依赖出图 |
+| [`wsl-capture`](./skills/wsl-capture/) | WSL 环境截图 | 「帮我在 WSL 截个屏 / 截网页 / 截窗口」 |
+| [`shotframe`](./skills/shotframe/) | 截图套框 | 「给截图加个 macOS / 浏览器边框」 |
+| [`gh-pages`](./skills/gh-pages/) | GitHub Pages 配置 | 「帮我给 xxx 仓库开 GitHub Pages」 |
+| [`gh-stars`](./skills/gh-stars/) | Star 收藏索引站 | 「把我的收藏生成一个展示站」 |
+| [`project-hub`](./skills/project-hub/) | 仓库导航站 | 「做一个列出我所有仓库的导航站」 |
 
-完整工作流：`wsl-capture` 截到图 → `shotframe` 套框 → 直接进 README / 博客 / 商店截图。
+## 设计理念
 
-## 特性
-
-- **零依赖**：两个 skill 都只依赖系统已有的 Chromium，不装任何 npm 包
-- **确定性输出**：真实截图 + 渲染脚本，绝不凭空捏造 UI
-- **中文优先**：全中文文档、中文示例、中文错误提示
-- **开箱即用**：`bash <(curl -s ...)` 一键安装到 opencode / Claude Code
+- **捕获与渲染分离**：截图类 skill 先拿真实像素，再穿衣服，两者通过文件路径解耦，可独立使用
+- **多后端降级**：每个能力都有多套后端（PowerShell interop → WSLg → X11），环境探测失败自动降级
+- **确定性 > 生成式**：不调用任何图像生成模型，输出 100% 来自真实数据
+- **零依赖优先**：脚本只依赖系统已有工具（Chromium / gh CLI / Python 标准库）
+- **Skill 自治**：每个 skill 完全自包含（`SKILL.md` + `scripts/`），可独立复制到任意项目使用
 
 ## 安装
 
 ```bash
-# 一键安装两个 skill 到本机（opencode + Claude Code 双支持）
-bash <(curl -s https://raw.githubusercontent.com/holtwood/shotkit/main/install.sh)
+git clone https://github.com/holtwood/agent-skills-zh.git ~/agent-skills-zh
+cd ~/agent-skills-zh
+
+# 安装全部 skill 到本机（opencode + Claude Code 双支持）
+./install.sh
+
+# 或按需安装指定 skill
+./install.sh shotframe gh-pages
 ```
 
-也可以手动放置：
+> 想给某个具体项目用？直接把对应 `skills/<name>/` 目录复制进项目的 `.opencode/skills/` 或 `.claude/skills/` 即可。
+
+## 快速上手
 
 ```bash
-# opencode
-ln -s "$(pwd)/skills/shotframe" ~/.config/opencode/skills/shotframe
-ln -s "$(pwd)/skills/wsl-capture" ~/.config/opencode/skills/wsl-capture
-
-# Claude Code
-ln -s "$(pwd)/skills/shotframe" ~/.claude/skills/shotframe
-ln -s "$(pwd)/skills/wsl-capture" ~/.claude/skills/wsl-capture
-```
-
-## 快速开始
-
-```bash
-# 1. 截一个浏览器页面（自动找 Chromium）
+# 截图 → 套框 一条龙
 skills/wsl-capture/scripts/capture.sh browser https://example.com -o ~/shots/page.png
-
-# 2. 截 Windows 当前屏幕（走 PowerShell interop）
-skills/wsl-capture/scripts/capture.sh screen -o ~/shots/desktop.png
-
-# 3. 套 macOS 窗口框
 skills/shotframe/scripts/frame.js --input ~/shots/page.png --preset macos --output ~/shots/page-macos.png
 
-# 4. 套浏览器边框
-skills/shotframe/scripts/frame.js --input ~/shots/page.png --preset browser --title "我的产品" --url app.example.com --output ~/shots/page-browser.png
+# Star 收藏站（参考 page-stars 模式）
+skills/gh-stars/scripts/init-stars-site.sh my-owner
+
+# 仓库导航站（参考 page-repos 模式）
+skills/project-hub/scripts/init-hub.sh my-owner
 ```
 
-## 效果示例
+## 新增 Skill
 
-| macOS 窗口框 | 浏览器边框 |
-| --- | --- |
-| ![macos](./docs/screenshots/macos-example.png) | ![browser](./docs/screenshots/browser-example.png) |
-
-## 设计理念
-
-- **捕获与渲染分离**：`wsl-capture` 负责「拿到真实像素」，`shotframe` 负责「穿衣服」，两者通过文件路径解耦，可独立使用
-- **多后端降级**：每个能力都有多套后端（PowerShell interop → WSLg → X11），环境探测失败自动降级
-- **确定性 > 生成式**：不调用任何图像生成模型，输出 100% 来自真实截图
+想往合集里加新 skill？先读 [`docs/SKILL-TEMPLATE.md`](./docs/SKILL-TEMPLATE.md) 的编写规范，保持风格统一。
 
 ## 路线图
 
-- [x] 浏览器黑白边框框架（Browser / macOS）
-- [ ] iPhone / iPad / MacBook 设备框
-- [ ] 批量套框（目录输入）
-- [ ] 截图 → GIF 演示动画
-- [ ] 中文视频教程
+- [x] 截图链路：`wsl-capture` + `shotframe`（浏览器 / macOS 边框）
+- [ ] 设备框：iPhone / iPad / MacBook
+- [ ] `gh-pages`：多框架探测（Vite / Hugo / VitePress / Jekyll）
+- [ ] `gh-stars`：中文分类翻译 + CI 自动同步
+- [ ] `project-hub`：精选区 + 分组导航 + 每周审计
+- [ ] 中英双语 README
 
 ## 许可
 
