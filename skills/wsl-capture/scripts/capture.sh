@@ -20,9 +20,9 @@ find_chromium() {
   fi
   for c in \
     "${HOME}/.cache/ms-playwright"/chromium-*/chrome-linux64/chrome \
+    "${HOME}/.cache/ms-playwright"/chromium-*/chrome-linux/chrome \
     /usr/bin/chromium /usr/bin/chromium-browser /usr/bin/google-chrome \
-    /usr/bin/google-chrome-stable /usr/bin/chrome /snap/bin/chromium \
-    "/mnt/c/Program Files/Google/Chrome/Application/chrome.exe"; do
+    /usr/bin/google-chrome-stable /usr/bin/chrome /snap/bin/chromium; do
     if [[ -x "${c}" ]]; then echo "${c}"; return; fi
   done
   command -v chromium chromium-browser google-chrome chrome 2>/dev/null | head -1
@@ -80,13 +80,13 @@ cmd_screen() {
   if command -v powershell.exe >/dev/null 2>&1; then
     local win_path
     win_path="$(wslpath -w "${out}" 2>/dev/null || echo "${out}")"
+    local win_path_ps="${win_path//\'/\'\'}"
     local ps_code="Add-Type -AssemblyName System.Windows.Forms;
       \$b = [System.Windows.Forms.SystemInformation]::VirtualScreen;
       \$bmp = New-Object System.Drawing.Bitmap \$b.Width, \$b.Height;
       \$g = [System.Drawing.Graphics]::FromImage(\$bmp);
       \$g.CopyFromScreen(\$b.X, \$b.Y, 0, 0, \$bmp.Size);
 \$bmp.Save('${win_path_ps}', [System.Drawing.Imaging.ImageFormat]::Png)"
-    # 注意 PATH 不能带 \r\n 污染；win_path 由 wslpath 保证
     if powershell.exe -NoProfile -STA -Command "${ps_code}" >/dev/null 2>&1 && [[ -s "${out}" ]]; then
       echo "✅ Windows 桌面截图: ${out}"
       return 0
@@ -156,7 +156,7 @@ cmd_window() {
     \$bmp = New-Object System.Drawing.Bitmap \$w, \$hgt;
     \$g = [System.Drawing.Graphics]::FromImage(\$bmp);
     \$g.CopyFromScreen(\$r.L, \$r.T, 0, 0, \$bmp.Size);
-    \$bmp.Save('${win_path}', [System.Drawing.Imaging.ImageFormat]::Png)"
+    \$bmp.Save('${win_path_ps}', [System.Drawing.Imaging.ImageFormat]::Png)"
 
   if powershell.exe -NoProfile -STA -Command "${ps_code}" >/dev/null 2>&1 && [[ -s "${out}" ]]; then
     echo "✅ 窗口截图: ${out} (${query})"
@@ -198,10 +198,12 @@ cmd_clip() {
     fi
     # WSLg 常见 BMP 情况
     if wl-paste --type image/bmp > "${out}.bmp" 2>/dev/null && [[ -s "${out}.bmp" ]]; then
-      if command -v convert >/dev/null 2>&1; then
-        convert "${out}.bmp" "${out}" && rm -f "${out}.bmp" && { echo "✅ 剪贴板截图 (BMP 已转换): ${out}"; return 0; }
+      if command -v convert >/dev/null 2>&1 && convert "${out}.bmp" "${out}" && [[ -s "${out}" ]]; then
+        rm -f "${out}.bmp"
+        echo "✅ 剪贴板截图 (BMP 已转换): ${out}"
+        return 0
       fi
-      echo "⚠ 剪贴板是 BMP 且无 ImageMagick 可转换，已保留原始文件: ${out}.bmp（内容仍是 BMP，供后续转换）" >&2
+      echo "⚠ 剪贴板是 BMP 且无 ImageMagick 转换失败，已保留原始文件: ${out}.bmp（内容仍是 BMP）" >&2
       echo "${out}.bmp"
       return 0
     fi

@@ -71,8 +71,10 @@ function globPlaywrightChromium() {
   try {
     for (const ver of fs.readdirSync(cache)) {
       if (!ver.startsWith('chromium-')) continue;
-      const exe = path.join(cache, ver, 'chrome-linux64', 'chrome');
-      if (fs.existsSync(exe)) out.push(exe);
+      for (const layout of ['chrome-linux64', 'chrome-linux']) {
+        const exe = path.join(cache, ver, layout, 'chrome');
+        if (fs.existsSync(exe)) { out.push(exe); break; }
+      }
     }
   } catch (_) { /* cache 不存在时忽略 */ }
   return out;
@@ -179,11 +181,12 @@ function main() {
   }
   const input = args.input;
   const output = args.output;
-  const preset = args.preset || 'browser';
-  const title = args.title || '';
-  const url = args.url || '';
-  const background = args.background || 'light';
-  const pad = Number(args.padding) || 56;
+  const strArg = (v) => (typeof v === 'string' ? v : '');
+  const preset = strArg(args.preset) || 'browser';
+  const title = strArg(args.title);
+  const url = strArg(args.url);
+  const background = strArg(args.background) || 'light';
+  const pad = /^\d+$/.test(strArg(args.padding)) ? Number(args.padding) : 56;
 
   if (!fs.existsSync(input)) {
     console.error(`输入文件不存在: ${input}`);

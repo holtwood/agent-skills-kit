@@ -72,7 +72,7 @@ def main():
         grouped.setdefault(repo['_category'], []).append(repo)
 
     order = sorted(grouped.keys())
-    total = len(stars)
+    total = sum(len(items) for items in grouped.values())
 
     cards = []
     for cat in order:
@@ -140,6 +140,11 @@ def main():
 <script>
   const cats = [...new Set([...document.querySelectorAll('h2.cat')].map(h => h.dataset.cat))];
   const btnBox = document.getElementById('cats');
+  const allBtn = btnBox.querySelector('button'); // 「全部」是静态按钮，需单独绑定
+  allBtn.onclick = () => {{
+    document.querySelectorAll('#cats button').forEach(x => x.classList.remove('on'));
+    allBtn.classList.add('on'); apply();
+  }};
   cats.forEach(c => {{ const b = document.createElement('button'); b.textContent = c; b.dataset.cat = c;
     b.onclick = () => {{ document.querySelectorAll('#cats button').forEach(x => x.classList.remove('on'));
       b.classList.add('on'); apply(); }}; btnBox.appendChild(b); }});
@@ -148,12 +153,14 @@ def main():
     const cat = document.querySelector('#cats button.on')?.dataset.cat || '';
     const kw = q.value.trim().toLowerCase();
     document.querySelectorAll('.card').forEach(el => {{
-      el.style.display = (!kw || el.textContent.toLowerCase().includes(kw)) ? '' : 'none';
+      const inCat = !cat || el.closest('.grid').previousElementSibling.dataset.cat === cat;
+      const hitKw = !kw || el.textContent.toLowerCase().includes(kw);
+      el.style.display = inCat && hitKw ? '' : 'none';
     }});
     document.querySelectorAll('h2.cat').forEach(h => {{
       const visible = [...h.nextElementSibling.querySelectorAll('.card')].some(c => c.style.display !== 'none');
-      h.style.display = (!cat || h.dataset.cat === cat) && visible ? '' : 'none';
-      h.nextElementSibling.style.display = (!cat || h.dataset.cat === cat) && visible ? '' : 'none';
+      h.style.display = visible ? '' : 'none';
+      h.nextElementSibling.style.display = visible ? '' : 'none';
     }});
   }}
   q.oninput = apply;

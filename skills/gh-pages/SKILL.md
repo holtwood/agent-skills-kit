@@ -26,10 +26,9 @@ description: "为 GitHub 仓库配置 GitHub Pages：自动探测仓库构建工
    gh api repos/<owner/repo>/pages --jq .status   # 200=已开 Pages，404=未开
    ```
 2. **探测构建工具**（决定用「Workflow 部署」还是「分支部署」）：
-   - 有 `package.json` / `vite.config.*` / `next.config.*` → 构建型（Vite / Next）
-   - 有 `hugo.toml` / `hugo.yaml` / `hugo.json` → Hugo 静态站
-   - 有 `docs/.vitepress` 或 `mkdocs.yml` → 文档站
-   - 只有 `README.md` / `index.html` → 纯静态（直接分支部署）
+   - `package.json` 含 `scripts.build` → 构建型，用 GitHub Actions workflow
+   - 其他（Hugo / VitePress / 纯静态 README、index.html）→ 分支部署（`/docs` 目录）
+   （与 `setup-pages.sh` 的 `detect_builder` 一致）
 3. **执行部署**：
    - 构建型 → 写入 `.github/workflows/gh-pages.yml`（本 skill 内置模板），`gh api` 设置 Pages 为 GitHub Actions 源
    - 纯静态 → 用 `gh api` 把 Pages 源指向 `main` 分支的 `/docs` 或独立 `gh-pages` 分支（`/docs` 更简单）

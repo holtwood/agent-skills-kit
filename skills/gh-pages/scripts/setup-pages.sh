@@ -49,13 +49,10 @@ fi
 echo "📦 ${REPO} | 默认分支: ${DEFAULT_BRANCH} | Pages 已开: ${HAS_PAGES}"
 
 detect_builder() {
-  local has_build_cmd=no has_hugo=no has_vitepress=no
-  gh api "repos/${REPO}/contents/package.json" --jq '.type' >/dev/null 2>&1 && has_build_cmd=yes
-  for f in hugo.toml hugo.yaml hugo.json; do
-    gh api "repos/${REPO}/contents/${f}" --jq '.type' >/dev/null 2>&1 && has_hugo=yes
-  done
-  gh api "repos/${REPO}/contents/docs/.vitepress" --jq '.type' >/dev/null 2>&1 && has_vitepress=yes
-  if [[ "${has_build_cmd}" == "yes" || "${has_hugo}" == "yes" || "${has_vitepress}" == "yes" ]]; then
+  # 只有 package.json 且含 scripts.build 才需要 Actions 构建；Hugo/VitePress 等无构建脚本走分支部署
+  if gh api "repos/${REPO}/contents/package.json" --jq '.content' 2>/dev/null \
+    | base64 -d 2>/dev/null \
+    | python3 -c 'import json,sys; sys.exit(0 if (json.load(sys.stdin).get("scripts") or {}).get("build") else 1)' >/dev/null 2>&1; then
     echo "workflow"
   else
     echo "branch"
@@ -121,9 +118,13 @@ EOF
   else
     echo "ℹ ${WORKFLOW_PATH} 已存在，跳过写入"
   fi
-  # Pages 源指向 GitHub Actions
-  gh api "repos/${REPO}/pages" -X PUT -f build_type=workflow >/dev/null 2>&1 || \
-    gh api "repos/${REPO}/pages" -X POST -f build_type=workflow >/dev/null 2>&1
+  # Pages 源指向 GitHub Actions（PUT 更新 / POST 新建，均失败则报错退出，不谎报成功）
+  if ! gh api "repos/${REPO}/pages" -X PUT -f build_type=workflow >/dev/null 2>&1; then
+    if ! gh api "repos/${REPO}/pages" -X POST -f build_type=workflow >/dev/null 2>&1; then
+      echo "✗ 无法设置 Pages 源为 GitHub Actions（检查 token 权限：需要 repo 写权限）" >&2
+      exit 1
+    fi
+  fi
   echo "✅ Pages 源已设为 GitHub Actions"
 else
   # 分支部署：确认 DIR 存在（或提示创建），然后设置 source
@@ -131,13 +132,19 @@ else
     echo "⚠ 仓库中没有 ${DIR}/ 目录，Pages 会显示 404，请先放一个 index.html 进去"
   fi
   if [[ "${HAS_PAGES}" == "true" ]]; then
-    gh api "repos/${REPO}/pages" -X PUT \
+    if ! gh api "repos/${REPO}/pages" -X PUT \
       -f build_type=legacy \
-      -f "source[branch]=${BRANCH}" -f "source[path]=/${DIR}" >/dev/null
+      -f "source[branch]=${BRANCH}" -f "source[path]=/${DIR}" >/dev/null 2>&1; then
+      echo "✗ 更新 Pages 源失败（检查 token 权限）" >&2
+      exit 1
+    fi
   else
-    gh api "repos/${REPO}/pages" -X POST \
+    if ! gh api "repos/${REPO}/pages" -X POST \
       -f build_type=legacy \
-      -f "source[branch]=${BRANCH}" -f "source[path]=/${DIR}" >/dev/null
+      -f "source[branch]=${BRANCH}" -f "source[path]=/${DIR}" >/dev/null 2>&1; then
+      echo "✗ 创建 Pages 失败（检查 token 权限）" >&2
+      exit 1
+    fi
   fi
   echo "✅ Pages 源已设为 ${BRANCH} 分支 /${DIR} 目录"
 fi
