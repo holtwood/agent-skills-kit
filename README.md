@@ -1,7 +1,7 @@
 # my-agent-skills · 自用 Agent Skills 集合
 
 > 可安装的 Agent Skill 集合：**捕获 → 美化 → 发布 → 展示**，覆盖个人开发者的完整「作品展示」链路。
-> 兼容 opencode / Claude Code / Codex 等主流 AI 编程工具。
+> 兼容 opencode / Claude Code 等主流 AI 编程工具。
 >
 > **English**: [README.en.md](./README.en.md)
 
@@ -44,7 +44,7 @@ cd ~/my-agent-skills
 ### 环境要求
 
 - **系统**：Linux / WSL（`wsl-capture` 需 WSL + `powershell.exe`；macOS 部分可用但需 `coreutils`）
-- **bash ≥ 4.3**（`install.sh` 使用 `mapfile -d`；macOS 请用 Homebrew 的 bash）
+- **bash ≥ 4.4**（`install.sh` 使用 `mapfile -d`；macOS 请用 Homebrew 的 bash）
 - **依赖按需**：截图类需要系统 Chromium；GitHub 类需要 [gh CLI](https://cli.github.com/) 已登录；生成类需要 Python 3
 
 ## 快速上手
@@ -79,8 +79,10 @@ archify 是第三方开源 skill（[tt-a1i/archify](https://github.com/tt-a1i/ar
 
 ```bash
 ./scripts/update-archify.sh --check   # 只检查是否有新版本
-./scripts/update-archify.sh           # 下载官方 release 资产 → 校验官方清单 sha256 → 替换 skills/archify/
+./scripts/update-archify.sh           # 下载官方 release 资产 → 校验清单字段与 sha256 → 验证 doctor → 替换 skills/archify/
 ```
+
+脚本内置：清单字段 cross-validation（channel/version/ref/sha256）、sha256 校验、zip 路径穿越防护、防降级（本地版本不低于官方最新版时跳过）、覆盖前检查未提交改动。旧版由 git 历史兜底，不另做备份；如需回滚用 `git restore --source=<旧提交> skills/archify`。
 
 ## 新增 Skill
 

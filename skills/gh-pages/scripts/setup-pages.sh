@@ -35,6 +35,9 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# 兼容 --dir /docs 这类带前导斜杠的写法，避免拼出 //docs
+DIR="${DIR#/}"
+
 case "${MODE}" in
   auto|workflow|branch) ;;
   *) echo "✗ --mode 必须是 auto|workflow|branch，收到: ${MODE}" >&2; exit 2 ;;

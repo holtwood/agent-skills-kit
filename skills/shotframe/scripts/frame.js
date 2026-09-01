@@ -11,9 +11,11 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const crypto = require('crypto');
 const { execFileSync } = require('child_process');
 
 // ---------- 参数解析 ----------
+const VALUE_FLAGS = new Set(['input', 'output', 'preset', 'device', 'title', 'url', 'background', 'padding', 'chromium']);
 function parseArgs(argv) {
   const args = {};
   for (let i = 0; i < argv.length; i++) {
@@ -21,7 +23,10 @@ function parseArgs(argv) {
     if (a.startsWith('--')) {
       const key = a.slice(2);
       const next = argv[i + 1];
-      if (next !== undefined && !next.startsWith('--')) {
+      if (VALUE_FLAGS.has(key) && next !== undefined) {
+        args[key] = next;
+        i++;
+      } else if (next !== undefined && !next.startsWith('--')) {
         args[key] = next;
         i++;
       } else {
@@ -108,7 +113,7 @@ function buildHtml({ imgDataUri, imgW, imgH, preset, device, title, url, backgro
   if (preset === 'device') {
     const d = DEVICES[device];
     const screenW = d.screenW;
-    const screenH = Math.round((screenW * imgH) / imgW);
+    const screenH = imgW > 0 ? Math.round((screenW * imgH) / imgW) : 0;
     const b = d.bezel;
 
     if (device === 'macbook') {
@@ -280,8 +285,8 @@ function main() {
 
   const { html, cssW, cssH } = buildHtml({ imgDataUri: dataUri, imgW: w, imgH: h, preset, device, title, url, background, pad });
 
-  const tmpHtml = path.join(os.tmpdir(), `shotframe-${Date.now()}.html`);
-  fs.writeFileSync(tmpHtml, html);
+  const tmpHtml = path.join(os.tmpdir(), `shotframe-${process.pid}-${crypto.randomBytes(6).toString('hex')}.html`);
+  fs.writeFileSync(tmpHtml, html, { flag: 'wx', mode: 0o600 });
 
   fs.mkdirSync(path.dirname(path.resolve(output)), { recursive: true });
   try {

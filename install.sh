@@ -9,9 +9,9 @@
 #
 set -euo pipefail
 
-# install.sh 使用了 mapfile -d ''，需要 bash >= 4.3
-if (( BASH_VERSINFO[0] < 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] < 3) )); then
-  echo "✗ install.sh 需要 bash ≥ 4.3（当前 $(bash --version | head -1)）" >&2
+# install.sh 使用了 mapfile -d ''，需要 bash >= 4.4
+if (( BASH_VERSINFO[0] < 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] < 4) )); then
+  echo "✗ install.sh 需要 bash ≥ 4.4（当前 $(bash --version | head -1)）" >&2
   echo "  macOS 请用 Homebrew 安装: brew install bash，并以 /usr/local/bin/bash 运行" >&2
   exit 1
 fi
@@ -29,8 +29,18 @@ link_one() {
   local target="$1" name="$2" src="$3"
   mkdir -p "${target}"
   local link="${target}/${name}"
-  if [[ -L "${link}" || -e "${link}" ]]; then
-    echo "  · ${link} 已存在，跳过"
+  if [[ -L "${link}" ]]; then
+    local current
+    current="$(readlink "${link}" 2>/dev/null || true)"
+    if [[ "${current}" == "${src}" && -e "${link}" ]]; then
+      echo "  · ${link} 已指向本仓库且有效，跳过"
+    else
+      echo "  · ${link} 是旧/失效链接（→ ${current}），重新链接到 ${src}"
+      rm -f "${link}"
+      ln -s "${src}" "${link}"
+    fi
+  elif [[ -e "${link}" ]]; then
+    echo "  · ${link} 已存在（非链接），跳过"
   else
     ln -s "${src}" "${link}"
     echo "  · ${link} ← ${src}"

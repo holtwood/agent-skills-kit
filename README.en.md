@@ -1,7 +1,7 @@
 # my-agent-skills · Personal Agent Skills Collection
 
 > Installable Agent Skills: **Capture → Beautify → Publish → Showcase**, covering a developer's full "showcase" workflow.
-> Compatible with opencode / Claude Code / Codex and other mainstream AI coding tools.
+> Compatible with opencode / Claude Code and other mainstream AI coding tools.
 >
 > **中文**: [README.md](./README.md)
 
@@ -44,7 +44,7 @@ cd ~/my-agent-skills
 ### Requirements
 
 - **OS**: Linux / WSL (`wsl-capture` needs WSL + `powershell.exe`; macOS partially works with `coreutils`)
-- **bash ≥ 4.3** (`install.sh` uses `mapfile -d`; macOS users: install bash via Homebrew)
+- **bash ≥ 4.4** (`install.sh` uses `mapfile -d`; macOS users: install bash via Homebrew)
 - **Dependencies as needed**: screenshot skills need a system Chromium; GitHub skills need [gh CLI](https://cli.github.com/) logged in; generator skills need Python 3
 
 ## Quick start
@@ -79,8 +79,10 @@ archify is a third-party open-source skill ([tt-a1i/archify](https://github.com/
 
 ```bash
 ./scripts/update-archify.sh --check   # check only whether a new version exists
-./scripts/update-archify.sh           # fetch official release asset → verify sha256 against official manifest → replace skills/archify/
+./scripts/update-archify.sh           # fetch official release asset → validate manifest fields & sha256 → run doctor → replace skills/archify/
 ```
+
+The script validates manifest fields (channel/version/ref/sha256), verifies the sha256, guards against zip path traversal, refuses downgrades (skips when the local version is not lower), and checks for uncommitted local changes before replacing. The old version is covered by git history — no extra backup is kept; roll back with `git restore --source=<old commit> skills/archify`.
 
 ## Adding a new skill
 

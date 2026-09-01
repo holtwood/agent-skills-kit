@@ -9,6 +9,7 @@ project-hub — 把仓库列表生成自包含导航主页（Python 标准库，
 import argparse
 import html
 import json
+import sys
 
 LANG_COLORS = {
     'JavaScript': '#f1e05a', 'TypeScript': '#3178c6', 'Python': '#3572A5',
@@ -64,6 +65,10 @@ def main():
 
     with open(args.repos_json, encoding='utf-8') as f:
         repos = json.load(f)
+    if not isinstance(repos, list):
+        print('✗ repos.json 必须是 JSON 数组（gh repo list 的输出格式）', file=sys.stderr)
+        sys.exit(2)
+    repos = [r for r in repos if isinstance(r, dict)]
 
     desc_zh = load_desc(args.desc_zh)
     featured_names = [n.strip() for n in args.featured.split(',') if n.strip()]

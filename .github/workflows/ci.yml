@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Shell 语法检查
+        run: |
+          set -euo pipefail
+          for f in install.sh scripts/*.sh skills/*/scripts/*.sh; do
+            bash -n "$f"
+          done
+
+      - name: Python 语法与入口冒烟
+        run: |
+          python3 -m py_compile skills/gh-stars/scripts/gen-index.py skills/project-hub/scripts/gen-hub.py
+          python3 skills/gh-stars/scripts/gen-index.py --help >/dev/null
+          python3 skills/project-hub/scripts/gen-hub.py --help >/dev/null
+
+      - name: Node 语法检查
+        run: node --check skills/shotframe/scripts/frame.js
+
+      - name: install.sh 冒烟（临时目录，不触碰真实 HOME）
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          OPENCODE_SKILLS_DIR="$tmp/opencode" CLAUDE_SKILLS_DIR="$tmp/claude" \
+            ./install.sh shotframe gh-pages >/dev/null
+          test -L "$tmp/opencode/shotframe" && test -L "$tmp/claude/shotframe"
+          test -L "$tmp/opencode/gh-pages" && test -L "$tmp/claude/gh-pages"
+
+      - name: 生成器冒烟（真实 fixture）
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          printf '%s\n' '[{"full_name":"a/b","description":"d","language":"Python","stargazers_count":1,"topics":["ai"],"html_url":"https://github.com/a/b"}]' > "$tmp/stars.json"
+          python3 skills/gh-stars/scripts/gen-index.py "$tmp/stars.json" "$tmp/index.html" --title T
+          grep -q 'class="card"' "$tmp/index.html"
+          printf '%s\n' '[{"name":"r1","description":"d","language":"Go","stargazersCount":2,"updatedAt":"2024-01-01","isFork":false,"isArchived":false,"url":"https://github.com/o/r","homepageUrl":null}]' > "$tmp/repos.json"
+          python3 skills/project-hub/scripts/gen-hub.py "$tmp/repos.json" "$tmp/hub.html" --title H --owner o
+          grep -q 'class="card"' "$tmp/hub.html"

@@ -203,9 +203,9 @@ cmd_clip() {
         echo "✅ 剪贴板截图 (BMP 已转换): ${out}"
         return 0
       fi
-      echo "⚠ 剪贴板是 BMP 且无 ImageMagick 转换失败，已保留原始文件: ${out}.bmp（内容仍是 BMP）" >&2
-      echo "${out}.bmp"
-      return 0
+      echo "✗ 剪贴板是 BMP 且无法转换为 PNG（需要 ImageMagick 的 convert）" >&2
+      echo "  原始 BMP 保留在: ${out}.bmp（shotframe 只接受 PNG，请勿直接使用）" >&2
+      return 1
     fi
   fi
 

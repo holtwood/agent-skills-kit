@@ -101,7 +101,11 @@ def main():
 
     grouped = {}
     for s in stars:
+        if not isinstance(s, dict):
+            continue
         repo = s if 'full_name' in s else s.get('repo', {})
+        if not isinstance(repo, dict):
+            continue
         repo = dict(repo)
         if not repo.get('full_name'):
             continue
