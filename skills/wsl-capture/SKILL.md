@@ -31,10 +31,12 @@ bash <skill目录>/scripts/capture.sh <mode> [参数...]
 
 | 模式 | 作用 | 参数 |
 | --- | --- | --- |
-| `browser <url>` | 截网页 | `-o 输出.png`、`--width 1440`、`--full-page` |
+| `browser <url>` | 截网页 | `-o 输出.png`、`--width 1440` |
 | `screen` | 截当前屏幕（Windows 桌面优先） | `-o 输出.png` |
-| `window <标题或进程名>` | 截指定 Windows 窗口 | `-o 输出.png` |
+| `window <标题或进程名>` | 截指定 Windows 窗口（标题**子串**匹配，不分大小写；找不到再按进程名精确/前缀匹配） | `-o 输出.png` |
 | `clip` | 从剪贴板取图 | `-o 输出.png` |
+
+> browser 模式只截视口（Chromium 命令行不支持整页截图，那是 Puppeteer/Playwright 的 API）。需要整页时加大 `--width` 或交给浏览器工具。
 
 ## 后端自动降级策略
 
@@ -70,7 +72,7 @@ bash scripts/capture.sh browser https://example.com -o ~/shots/page.png --width 
 # 截当前 Windows 桌面
 bash scripts/capture.sh screen -o ~/shots/desktop.png
 
-# 截标题含 "Notepad" 的窗口
+# 截标题含 "Notepad" 的窗口（子串匹配，也可传进程名如 notepad）
 bash scripts/capture.sh window Notepad -o ~/shots/notepad.png
 
 # 取剪贴板截图（Win+Shift+S 之后运行）

@@ -8,7 +8,7 @@
 # 探测结果:
 #   node       → package.json 有 build 脚本（Vite / Vue / React 等）→ GitHub Actions workflow
 #   vitepress  → package.json 依赖含 vitepress                        → GitHub Actions workflow
-#   hugo       → 检测到 hugo.toml / config.toml 等                    → GitHub Actions workflow（Hugo 构建）
+#   hugo       → 检测到 hugo.toml 等（config.toml 需搭配 Hugo 特征目录）    → GitHub Actions workflow（Hugo 构建）
 #   jekyll     → 检测到 _config.yml                                    → 分支部署（Pages 原生构建 Jekyll）
 #   branch     → 纯静态（README / index.html / 无构建）               → 分支部署
 #
@@ -99,10 +99,13 @@ except Exception:
 }
 
 detect_builder() {
-  # Hugo 配置是最具体的信号（hugo.toml / hugo.yaml / hugo.json / config.toml）
+  # Hugo 配置是最具体的信号（hugo.toml / hugo.yaml / hugo.json）
+  # config.toml 单独出现不视为 Hugo（Rust/Python 等项目也有 config.toml），
+  # 需搭配 Hugo 特征目录（archetypes / content / layouts）佐证，避免误判导致部署必坏
   # 注意要放在 package.json 之前：Hugo 站点常带 package.json（postcss/tailwind 资源构建），
-  # 先判 package.json 会把这类站点误判为 node 并用 dist/ 产物（实际 Hugo 输出 public/），部署必坏
-  if has_file "hugo.toml" || has_file "hugo.yaml" || has_file "hugo.json" || has_file "config.toml"; then
+  # 先判 package.json 会把这类站点误判为 node 并用 dist/ 产物（实际 Hugo 输出 public/）
+  if has_file "hugo.toml" || has_file "hugo.yaml" || has_file "hugo.json" \
+     || { has_file "config.toml" && { has_file "archetypes" || has_file "content" || has_file "layouts"; }; }; then
     echo "hugo"; return
   fi
   local pkg
@@ -168,7 +171,7 @@ write_workflow() {
     hugo)
       build_steps='      - uses: peaceiris/actions-hugo@v3
         with:
-          hugo-version: "0.121.0"
+          hugo-version: "latest"
       - run: hugo --minify'
       ;;
     *) # node / vitepress
@@ -184,7 +187,7 @@ write_workflow() {
 name: Deploy to GitHub Pages
 on:
   push:
-    branches: [main, master]
+    branches: [${DEFAULT_BRANCH}]
   workflow_dispatch:
 permissions:
   contents: read
@@ -198,6 +201,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
 ${build_steps}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

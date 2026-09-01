@@ -48,3 +48,20 @@ jobs:
           printf '%s\n' '[{"name":"r1","description":"d","language":"Go","stargazersCount":2,"updatedAt":"2024-01-01","isFork":false,"isArchived":false,"url":"https://github.com/o/r","homepageUrl":null}]' > "$tmp/repos.json"
           python3 skills/project-hub/scripts/gen-hub.py "$tmp/repos.json" "$tmp/hub.html" --title H --owner o
           grep -q 'class="card"' "$tmp/hub.html"
+
+      - name: 生成器缺字段容错（html_url / url 缺失时回退拼接）
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          # gh-stars：缺 html_url 不崩溃，回退 https://github.com/<full_name>
+          printf '%s\n' '{"starred_at":"2024-01-01T00:00:00Z","full_name":"a/b","description":"d","language":"Python","stargazers_count":1,"topics":[],"fork":false}' > "$tmp/stars2.jsonl"
+          python3 skills/gh-stars/scripts/gen-index.py "$tmp/stars2.jsonl" "$tmp/index2.html" --title T
+          grep -q 'href="https://github.com/a/b"' "$tmp/index2.html"
+          # gh-stars：JSONL 中混入坏行不崩溃，跳过即可
+          printf '%s\n' 'not-json' '{"starred_at":"2024-01-02T00:00:00Z","full_name":"c/d","description":"d","language":"Go","stargazers_count":2,"topics":["docker"],"fork":true,"html_url":"https://github.com/c/d"}' > "$tmp/stars3.jsonl"
+          python3 skills/gh-stars/scripts/gen-index.py "$tmp/stars3.jsonl" "$tmp/index3.html" --title T 2>/dev/null
+          grep -q 'href="https://github.com/c/d"' "$tmp/index3.html"
+          # project-hub：url 缺失时用 --owner 拼出带 owner 的正确链接
+          printf '%s\n' '[{"name":"r2","description":"d","language":"Go","stargazersCount":2,"updatedAt":"2024-01-01","fork":false,"archived":false}]' > "$tmp/repos2.json"
+          python3 skills/project-hub/scripts/gen-hub.py "$tmp/repos2.json" "$tmp/hub2.html" --title H --owner o
+          grep -q 'href="https://github.com/o/r2"' "$tmp/hub2.html"

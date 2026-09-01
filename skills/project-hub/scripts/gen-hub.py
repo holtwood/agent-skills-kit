@@ -28,10 +28,11 @@ def load_desc(path):
     try:
         with open(path, encoding='utf-8') as f:
             return json.load(f)
-    except Exception:
+    except Exception as e:
+        print(f'⚠ 无法读取中文描述文件 {path}（{e}），将使用原文描述', file=sys.stderr)
         return {}
 
-def card(r):
+def card(r, owner=''):
     lang = r.get('language') or ''
     color = LANG_COLORS.get(lang, '#94a3b8')
     desc = r.get('description') or '（无描述）'
@@ -42,7 +43,9 @@ def card(r):
         badges += '<span class="b fork">Fork</span>'
     if r.get('archived'):
         badges += '<span class="b arc">归档</span>'
-    return f'''<a class="card" href="{esc(r.get('url') or ('https://github.com/' + esc(r.get('name', ''))))}" target="_blank" rel="noopener">
+    # url 缺失/为空时回退拼接：有 owner 用 owner/name，保证链接指向正确仓库
+    url = r.get('url') or (f"https://github.com/{owner}/{r.get('name', '')}".rstrip('/') if owner else f"https://github.com/{r.get('name', '')}")
+    return f'''<a class="card" href="{esc(url)}" target="_blank" rel="noopener">
   <div class="head"><span class="name">{esc(r['name'])}</span>{badges}</div>
   <p class="desc">{esc(desc)}</p>
   <div class="meta">
@@ -74,12 +77,13 @@ def main():
     featured_names = [n.strip() for n in args.featured.split(',') if n.strip()]
 
     def group_of(r):
+        # language 模式纯按语言分组（Fork/归档状态以卡片角标展示，不再单列分组）
+        if args.group_by == 'language':
+            return r.get('language') or '其他'
         if r.get('archived'):
             return '归档'
         if r.get('fork'):
             return 'Fork'
-        if args.group_by == 'language':
-            return r.get('language') or '其他'
         name = r.get('name', '')
         if name.startswith('awesome-') or 'awesome' in name:
             return 'Awesome 合集'
@@ -105,17 +109,17 @@ def main():
     for r in repos:
         grouped.setdefault(group_of(r), []).append(r)
 
-    order = sorted(grouped.keys(), key=lambda g: {'个人站点': 0, '项目': 1, 'Awesome 合集': 2, 'Fork': 3, '归档': 4}.get(g, 5))
+    order = sorted(grouped.keys(), key=lambda g: {'个人站点': 0, '项目': 1, 'Awesome 合集': 2, 'Fork': 3, '归档': 4, '其他': 99}.get(g, 50))
     total = len(repos) + len(featured)
 
     sections = []
     if featured:
         sections.append('<h2 class="grp feat-h" data-cat="⭐ 精选">⭐ 精选 <span class="n">%d</span></h2><div class="grid" data-g="feat">%s</div>'
-                        % (len(featured), ''.join(card(r) for r in sorted(featured, key=lambda x: x.get('stargazersCount') or 0, reverse=True))))
+                        % (len(featured), ''.join(card(r, args.owner) for r in sorted(featured, key=lambda x: x.get('stargazersCount') or 0, reverse=True))))
     for group in order:
         items = sorted(grouped[group], key=lambda x: x.get('stargazersCount') or 0, reverse=True)
         sections.append('<h2 class="grp" data-cat="%s">%s <span class="n">%d</span></h2><div class="grid">%s</div>'
-                        % (esc(group), esc(group), len(items), ''.join(card(r) for r in items)))
+                        % (esc(group), esc(group), len(items), ''.join(card(r, args.owner) for r in items)))
 
     html_page = f'''<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8">

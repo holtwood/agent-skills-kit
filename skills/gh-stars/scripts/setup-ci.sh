@@ -15,7 +15,9 @@ TARGET="${1:-$(pwd)}"
 BRANCH="main"
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --branch) BRANCH="$2"; shift 2 ;;
+    --branch)
+      [[ $# -ge 2 ]] || { echo "✗ --branch 需要一个分支名参数" >&2; exit 2; }
+      BRANCH="$2"; shift 2 ;;
     -h|--help) echo "用法: setup-ci.sh [目标仓库目录] [--branch main]"; exit 0 ;;
     *) shift ;;
   esac
@@ -46,9 +48,10 @@ jobs:
       - name: 拉取 Star 列表并生成索引站
         env:
           GH_TOKEN: \${{ secrets.GITHUB_TOKEN }}
+          # 仓库在组织名下或要展示他人收藏时，在仓库 Settings → Variables 设置 STARS_OWNER
+          OWNER: \${{ vars.STARS_OWNER || github.repository_owner }}
         run: |
           set -euo pipefail
-          OWNER="\${GITHUB_REPOSITORY%/*}"
           bash skills/gh-stars/scripts/fetch-stars.sh "\${OWNER}" data/starred_full.json
           python3 skills/gh-stars/scripts/gen-index.py data/starred_full.json docs/index.html --owner "\${OWNER}"
       - name: 有更新则提交推送
@@ -66,4 +69,6 @@ EOF
 
 echo "✅ 已写入 ${TARGET}/.github/workflows/sync-stars.yml"
 echo "   skill 脚本已复制到 ${DEST}/"
+echo "   默认拉取仓库 owner 的 Star；仓库在组织名下或要展示他人收藏时，"
+echo "   请在仓库 Settings → Secrets and variables → Actions → Variables 添加 STARS_OWNER"
 echo "   （请在仓库 Settings → Actions 确认已允许 GITHUB_TOKEN 写权限，或将默认分支改为 ${BRANCH}）"

@@ -51,8 +51,8 @@ bash <skill目录>/scripts/setup-ci.sh <项目目录> [--branch main]
 ```
 
 - `--featured a,b,c`：把指定仓库名渲染在页面顶部「⭐ 精选」高亮区（橙色描边），并自动从普通分组移除避免重复
-- `--group-by type|language`：按类型（个人站点 / 项目 / Awesome 合集 / Fork / 归档）或语言分组；页面上方有分组筛选按钮，可点击筛选
-- `setup-ci.sh` 写入 `.github/workflows/audit-weekly.yml`（每周审计，提交历史即留痕）
+- `--group-by type|language`：按类型（个人站点 / 项目 / Awesome 合集 / Fork / 归档）或**纯按语言**分组（Fork / 归档状态以卡片角标展示，不再单列分组）；页面上方有分组筛选按钮，可点击筛选
+- `setup-ci.sh` 写入 `.github/workflows/audit-weekly.yml`（每周审计，提交历史即留痕）；默认拉取仓库 owner 的仓库，可在仓库 Variables 设置 `HUB_OWNER` 覆盖
 
 ## 示例
 
@@ -76,7 +76,7 @@ bash scripts/setup-ci.sh .
 - 依赖：`gh` CLI + Python 3 标准库（零第三方包）
 - 精选区通过 `--featured` 指定；分组筛选按钮 + 搜索框均为页面内 JS，单文件可离线打开
 - 语言色标内置常见语言映射（JS/TS/Python/Go/Rust/Shell 等）
-- `setup-ci.sh` 生成的审计 workflow 用 `GITHUB_TOKEN` 拉取仓库列表并自动提交；如启用分支保护需自行调整推送方式
+- `setup-ci.sh` 生成的审计 workflow 用 `GITHUB_TOKEN` 拉取仓库列表并自动提交；如启用分支保护需自行调整推送方式；仓库在组织名下或要展示他人仓库时，在仓库 Variables 设置 `HUB_OWNER`
 - 与 `gh-stars` 的区别：本 skill 管「我**自己**的仓库」，`gh-stars` 管「我收藏的**别人**的仓库」
 
 ## 常见问题

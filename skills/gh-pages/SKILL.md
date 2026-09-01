@@ -26,7 +26,7 @@ description: "为 GitHub 仓库配置 GitHub Pages：自动探测仓库构建工
    gh api repos/<owner/repo>/pages --jq .status   # 200=已开 Pages，404=未开
    ```
 2. **探测构建工具**（决定用「Workflow 部署」还是「分支部署」）：
-   - `hugo.toml` / `hugo.yaml` / `hugo.json` / `config.toml` → **hugo**（产物默认 `public`，用 Hugo 构建 workflow；hugo 配置优先于 package.json，因为 Hugo 站常带 package.json 做资源构建）
+   - `hugo.toml` / `hugo.yaml` / `hugo.json`，或 `config.toml` + Hugo 特征目录（`archetypes` / `content` / `layouts`）→ **hugo**（产物默认 `public`，用 Hugo 构建 workflow；hugo 配置优先于 package.json，因为 Hugo 站常带 package.json 做资源构建；`config.toml` 单独存在不视为 Hugo，避免误判 Rust/Python 等项目）
    - `package.json` 依赖含 `vitepress` → **vitepress**（产物默认 `docs/.vitepress/dist`；兼容官方脚手架默认的 `docs:build` 脚本，自动改用 `npm run docs:build`）
    - `package.json` 含 `scripts.build` → **node**（Vite / Vue / React 等通用构建）
    - `_config.yml` → **jekyll**（Pages 原生构建，源指向仓库根，走分支部署）
@@ -67,7 +67,7 @@ bash scripts/setup-pages.sh holtwood/blog --output public
 
 - 依赖：[`gh` CLI](https://cli.github.com/) 已登录（`gh auth status` 检查）
 - 需要 `workflow` 或 `pages` 相关权限的 token/账号
-- workflow 模板按框架生成：node/vitepress 用 `actions/setup-node`（`npm ci` 失败自动回退 `npm install`），hugo 用 `peaceiris/actions-hugo` + `hugo --minify`，统一走 `actions/configure-pages` + `actions/deploy-pages` 标准流程
+- workflow 模板按框架生成：node/vitepress 用 `actions/setup-node`（`npm ci` 失败自动回退 `npm install`），hugo 用 `peaceiris/actions-hugo`（最新版）+ `hugo --minify`，checkout 开启 `submodules: recursive`（Hugo 主题常用 submodule），push 触发分支跟随仓库默认分支，统一走 `actions/configure-pages` + `actions/deploy-pages` 标准流程
 - Jekyll 不走 Actions：GitHub Pages 对 Jekyll 有原生构建，源设为仓库根即可
 
 ## 常见问题

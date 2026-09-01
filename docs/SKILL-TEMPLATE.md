@@ -43,7 +43,8 @@ skills/<kebab-case 英文名>/
 
 ## 脚本规范
 
-- 每个脚本：`set -euo pipefail`（bash）或 `def main()`（Python）
+- 每个脚本：`set -euo pipefail`（bash）。若脚本内部需要多后端降级/软失败逻辑，可用 `set -uo pipefail` 并显式处理各分支退出码（参考 `wsl-capture/scripts/capture.sh`）
+- Python 脚本统一 `def main()` 入口结构
 - 顶部注释写清用法
 - 输出路径统一用参数传入，默认写入当前目录或 `~/Pictures`、`docs/` 等约定位置
 - 退出码：`0` 成功，`1` 运行时错误，`2` 参数错误

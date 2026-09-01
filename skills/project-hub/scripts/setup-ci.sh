@@ -16,7 +16,9 @@ TARGET="${1:-$(pwd)}"
 BRANCH="main"
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --branch) BRANCH="$2"; shift 2 ;;
+    --branch)
+      [[ $# -ge 2 ]] || { echo "✗ --branch 需要一个分支名参数" >&2; exit 2; }
+      BRANCH="$2"; shift 2 ;;
     -h|--help) echo "用法: setup-ci.sh [目标仓库目录] [--branch main]"; exit 0 ;;
     *) shift ;;
   esac
@@ -47,9 +49,10 @@ jobs:
       - name: 拉取仓库列表并重新生成导航页
         env:
           GH_TOKEN: \${{ secrets.GITHUB_TOKEN }}
+          # 仓库在组织名下或要展示他人仓库时，在仓库 Settings → Variables 设置 HUB_OWNER
+          OWNER: \${{ vars.HUB_OWNER || github.repository_owner }}
         run: |
           set -euo pipefail
-          OWNER="\${GITHUB_REPOSITORY%/*}"
           bash skills/project-hub/scripts/fetch-repos.sh "\${OWNER}" data/repos.json
           python3 skills/project-hub/scripts/gen-hub.py data/repos.json docs/index.html --owner "\${OWNER}"
       - name: 有更新则提交推送（审计留痕）
@@ -67,4 +70,6 @@ EOF
 
 echo "✅ 已写入 ${TARGET}/.github/workflows/audit-weekly.yml"
 echo "   skill 脚本已复制到 ${DEST}/"
+echo "   默认拉取仓库 owner 的仓库列表；仓库在组织名下或要展示他人仓库时，"
+echo "   请在仓库 Settings → Secrets and variables → Actions → Variables 添加 HUB_OWNER"
 echo "   （请在仓库 Settings → Actions 确认已允许 GITHUB_TOKEN 写权限，或将默认分支改为 ${BRANCH}）"

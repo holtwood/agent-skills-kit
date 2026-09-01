@@ -3,7 +3,7 @@
 # wsl-capture — WSL 环境截图（多后端自动降级）
 #
 # 用法:
-#   capture.sh browser <url> [-o out.png] [--width 1440] [--full-page]
+#   capture.sh browser <url> [-o out.png] [--width 1440]
 #   capture.sh screen  [-o out.png]
 #   capture.sh window  <标题或进程名> [-o out.png]
 #   capture.sh clip    [-o out.png]
@@ -30,17 +30,16 @@ find_chromium() {
 
 # ---------- 模式: browser ----------
 cmd_browser() {
-  local url="" out="" width="1440" full_page=0
+  local url="" out="" width="1440"
   while [[ $# -gt 0 ]]; do
     case "$1" in
       -o|--output) out="$2"; shift 2 ;;
       --width) width="$2"; shift 2 ;;
-      --full-page) full_page=1; shift ;;
       -*) echo "未知参数: $1" >&2; exit 2 ;;
       *) url="$1"; shift ;;
     esac
   done
-  [[ -z "${url}" ]] && { echo "用法: capture.sh browser <url> [-o out.png] [--width 1440] [--full-page]" >&2; exit 2; }
+  [[ -z "${url}" ]] && { echo "用法: capture.sh browser <url> [-o out.png] [--width 1440]" >&2; exit 2; }
   out="${out:-${OUT_DIR}/browser-$(date +%H%M%S).png}"
 
   local chromium
@@ -50,11 +49,10 @@ cmd_browser() {
     return 1
   fi
 
-  local flag_full=""
-  [[ "${full_page}" -eq 1 ]] && flag_full="--full-page"
-  # shellcheck disable=SC2086
+  # 说明：Chromium 命令行没有 --full-page 这类整页截图开关（那是 Puppeteer/Playwright
+  # 的 API），整页截图需走 CDP，本 skill 只做视口截图，宽度用 --width 控制
   "${chromium}" --headless=new --disable-gpu --no-sandbox --hide-scrollbars \
-    --window-size="${width},1200" --screenshot="${out}" ${flag_full} \
+    --window-size="${width},1200" --screenshot="${out}" \
     "${url}" >/dev/null 2>&1
 
   if [[ -s "${out}" ]]; then
@@ -134,25 +132,29 @@ cmd_window() {
   # PowerShell 单引号字符串内转义单引号（' -> ''），防止窗口标题含引号时坏脚本
   local query_ps="${query//\'/\'\'}"
   local win_path_ps="${win_path//\'/\'\'}"
-  # 按标题找窗口 → 用 Win32 API 截到前台应用窗口
+  # 找窗口：标题子串匹配（不分大小写）→ 进程名精确 → 进程名前缀，取首个有主窗口的进程
   local ps_code="Add-Type -AssemblyName System.Drawing;
     Add-Type @'
     using System;
     using System.Runtime.InteropServices;
     public class W {
-      [DllImport(\"user32.dll\")] public static extern IntPtr FindWindow(string c, string t);
       [DllImport(\"user32.dll\")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
       [DllImport(\"user32.dll\")] public static extern bool SetForegroundWindow(IntPtr h);
       public struct RECT { public int L, T, R, B; }
     }
 '@;
-    \$h = [W]::FindWindow(\$null, '${query_ps}');
-    if (\$h -eq [IntPtr]::Zero) { throw 'window not found' };
+    \$q = '${query_ps}';
+    \$p = Get-Process | Where-Object { \$_.MainWindowTitle -and \$_.MainWindowTitle.IndexOf(\$q, [System.StringComparison]::OrdinalIgnoreCase) -ge 0 } | Select-Object -First 1;
+    if (-not \$p) { \$p = Get-Process | Where-Object { \$_.MainWindowHandle -ne 0 -and \$_.ProcessName -ieq \$q } | Select-Object -First 1 };
+    if (-not \$p) { \$p = Get-Process | Where-Object { \$_.MainWindowHandle -ne 0 -and \$_.ProcessName.StartsWith(\$q, [System.StringComparison]::OrdinalIgnoreCase) } | Select-Object -First 1 };
+    if (-not \$p) { throw 'window not found' };
+    \$h = \$p.MainWindowHandle;
     [W]::SetForegroundWindow(\$h) | Out-Null;
     Start-Sleep -Milliseconds 300;
     \$r = New-Object W+RECT;
     [W]::GetWindowRect(\$h, [ref]\$r) | Out-Null;
     \$w = \$r.R - \$r.L; \$hgt = \$r.B - \$r.T;
+    if (\$w -le 0 -or \$hgt -le 0) { throw 'invalid window rect' };
     \$bmp = New-Object System.Drawing.Bitmap \$w, \$hgt;
     \$g = [System.Drawing.Graphics]::FromImage(\$bmp);
     \$g.CopyFromScreen(\$r.L, \$r.T, 0, 0, \$bmp.Size);
@@ -179,11 +181,13 @@ cmd_clip() {
 
   # 后端 1: Windows 剪贴板（PowerShell 直接读，绕过 WSLg BMP 坏图）
   if command -v powershell.exe >/dev/null 2>&1; then
-    local win_path
+    local win_path win_path_ps
     win_path="$(wslpath -w "${out}" 2>/dev/null || echo "${out}")"
+    # PowerShell 单引号字符串内转义单引号（' -> ''），与 screen/window 模式保持一致
+    win_path_ps="${win_path//\'/\'\'}"
     local ps_code="Add-Type -AssemblyName System.Windows.Forms;
       \$img = [System.Windows.Forms.Clipboard]::GetImage();
-      if (\$img) { \$img.Save('${win_path}', [System.Drawing.Imaging.ImageFormat]::Png); 'ok' } else { throw 'clipboard empty' }"
+      if (\$img) { \$img.Save('${win_path_ps}', [System.Drawing.Imaging.ImageFormat]::Png); 'ok' } else { throw 'clipboard empty' }"
     if powershell.exe -NoProfile -STA -Command "${ps_code}" >/dev/null 2>&1 && [[ -s "${out}" ]]; then
       echo "✅ 剪贴板截图: ${out}"
       return 0

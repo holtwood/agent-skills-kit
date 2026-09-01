@@ -8,6 +8,7 @@ gh-stars — 把 Star 列表生成自包含静态索引页（Python 标准库，
 import argparse
 import html
 import json
+import sys
 
 def esc(s):
     return html.escape(str(s) if s is not None else '', quote=True)
@@ -18,7 +19,8 @@ def load_desc(path):
     try:
         with open(path, encoding='utf-8') as f:
             return json.load(f)
-    except Exception:
+    except Exception as e:
+        print(f'⚠ 无法读取中文描述文件 {path}（{e}），将使用原文描述', file=sys.stderr)
         return {}
 
 def main():
@@ -33,10 +35,21 @@ def main():
     with open(args.stars_json, encoding='utf-8') as f:
         try:
             stars = json.load(f)
+            # 单个 JSON 对象（非数组）视为单条记录，避免静默产出空页
+            if isinstance(stars, dict):
+                stars = [stars]
         except json.JSONDecodeError:
             # gh api --jq '.[]' 输出 JSONL（每行一个对象），例如 page-stars 的数据格式
             f.seek(0)
-            stars = [json.loads(line) for line in f if line.strip()]
+            stars = []
+            for lineno, line in enumerate(f, 1):
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    stars.append(json.loads(line))
+                except json.JSONDecodeError:
+                    print(f'⚠ 第 {lineno} 行不是合法 JSON，已跳过', file=sys.stderr)
 
     desc_zh = load_desc(args.desc_zh)
 
@@ -99,6 +112,14 @@ def main():
                 return TOPIC_CATS[t]
         return LANG_CATS.get(repo.get('language') or '', '其他')
 
+    # 分类展示顺序（固定顺序表，避免中文按码点排序导致「其他」混在正文中间）
+    CAT_ORDER = [
+        'AI / 大模型', '前端', '后端', '数据库', '运维 / DevOps', '安全', '数据科学',
+        '工具 / 效率', '学习 / 文档', '桌面 / 移动', '游戏开发',
+        '系统 / 底层', '脚本 / 自动化', '后端 / Python', '后端 / Go', '后端 / Rust',
+        '后端 / Java', '文档 / 排版', 'Awesome 合集', 'Fork',
+    ]
+
     grouped = {}
     for s in stars:
         if not isinstance(s, dict):
@@ -115,7 +136,8 @@ def main():
             repo['description'] = desc_zh[repo['full_name']]
         grouped.setdefault(repo['_category'], []).append(repo)
 
-    order = sorted(grouped.keys())
+    # 已知分类按固定顺序，未知分类排其后，「其他」兜底排最后
+    order = sorted(grouped.keys(), key=lambda c: (CAT_ORDER.index(c) if c in CAT_ORDER else 90 if c != '其他' else 99, c))
     total = sum(len(items) for items in grouped.values())
 
     cards = []
@@ -125,11 +147,13 @@ def main():
         cards.append('<div class="grid">')
         for r in sorted(items, key=lambda x: x.get('stargazers_count') or 0, reverse=True):
             name = r['full_name']
+            # html_url 缺失时回退拼接（外部/手改数据源可能缺字段）
+            repo_url = r.get('html_url') or f'https://github.com/{name}'
             desc = r.get('description') or '（无描述）'
             lang = r.get('language') or ''
             stars_cnt = r.get('stargazers_count') or 0
             star_date = (r.get('starred_at') or '')[:10]
-            cards.append(f'''<a class="card" href="{esc(r['html_url'])}" target="_blank" rel="noopener">
+            cards.append(f'''<a class="card" href="{esc(repo_url)}" target="_blank" rel="noopener">
   <div class="head">
     <span class="name">{esc(name)}</span>
     <span class="stars">★ {stars_cnt:,}</span>

@@ -146,7 +146,7 @@ function buildHtml({ imgDataUri, imgW, imgH, preset, device, title, url, backgro
       .device .screen, .lid .screen { border-radius:var(--sr); overflow:hidden; line-height:0; background:#000; }
       .device img, .mac img { display:block; width:100%; height:auto; }
       .island { position:absolute; top:calc(var(--b) + 8px); left:50%; transform:translateX(-50%); width:126px; height:34px; background:#000; border-radius:999px; box-shadow:inset 0 0 0 1px #1f2937; }
-      .camdot { position:absolute; top:calc(var(--b) - 6px); left:50%; transform:translateX(-50%); width:10px; height:10px; border-radius:50%; background:#475569; box-shadow:0 0 0 3px #0b0f14; }
+      .camdot { position:absolute; top:calc((var(--b) - 10px) / 2); left:50%; transform:translateX(-50%); width:10px; height:10px; border-radius:50%; background:#475569; box-shadow:0 0 0 3px #0b0f14; }
       .homeind { position:absolute; bottom:calc(var(--b) + 7px); left:50%; transform:translateX(-50%); width:132px; height:5px; border-radius:999px; background:#27272a; }
       .btn { position:absolute; background:#232a33; border-radius:4px; }
       .btn.lt { left:-4px; top:16%; width:4px; height:9%; min-height:22px; }

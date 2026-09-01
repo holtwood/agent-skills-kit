@@ -9,7 +9,7 @@
 # 安全特性：
 #   - 清单字段 cross-validation（channel=stable、ref=v<version>、sha256 为 64 位 hex）
 #   - 防降级：本地版本不低于官方最新版时跳过
-#   - 覆盖前检查未提交改动；旧版由 git 历史兜底，不另做备份
+#   - 覆盖前检查未提交改动（含已暂存与未跟踪文件）；旧版由 git 历史兜底，不另做备份
 #
 # 用法:
 #   ./scripts/update-archify.sh          # 同步到最新版
@@ -133,10 +133,11 @@ node "${TMP}/archify/bin/archify.mjs" doctor >/dev/null 2>&1 || {
 }
 
 echo "→ 替换 skills/archify/ ..."
-# 覆盖前先确认没有未提交的本地改动（git 历史救不回来，这也是唯一需要保护的）
+# 覆盖前先确认没有本地改动：git status --porcelain 能同时覆盖未暂存、已暂存（staged）与
+# 未跟踪（untracked）文件——后两类 git 历史救不回来，必须全部拦下
 if git -C "${REPO_DIR}" rev-parse --is-inside-work-tree >/dev/null 2>&1 \
-  && ! git -C "${REPO_DIR}" diff --quiet -- "${SKILL_DIR}" 2>/dev/null; then
-  echo "✗ skills/archify 有未提交的本地改动，已中止（旧版由 git 历史兜底，覆盖前请先提交或 stash）" >&2
+  && [[ -n "$(git -C "${REPO_DIR}" status --porcelain -- "${SKILL_DIR}" 2>/dev/null)" ]]; then
+  echo "✗ skills/archify 有未提交或未跟踪的本地改动，已中止（旧版由 git 历史兜底，覆盖前请先提交或 stash）" >&2
   exit 1
 fi
 if [[ -d "${SKILL_DIR}" ]]; then

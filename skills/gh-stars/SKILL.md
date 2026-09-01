@@ -70,7 +70,7 @@ bash scripts/setup-ci.sh .
 
 - 依赖：`gh` CLI（拉数据）+ Python 3 标准库（生成 HTML，零第三方包）
 - 中文分类：按 `topics` 命中中文分类（AI/大模型、前端、后端、数据库、运维/DevOps、安全、数据科学、工具/效率、学习/文档、桌面/移动、游戏开发、Awesome 合集），`topics` 未命中再按语言映射，最后兜底「其他」
-- `setup-ci.sh` 生成 `.github/workflows/sync-stars.yml`，用 `GITHUB_TOKEN` 拉取（可读公开数据）；如仓库启用了分支保护，需自行调整提交/推送方式
+- `setup-ci.sh` 生成 `.github/workflows/sync-stars.yml`，用 `GITHUB_TOKEN` 拉取（可读公开数据）；默认拉取仓库 owner 的 Star，仓库在组织名下或要展示他人收藏时，在仓库 Variables 设置 `STARS_OWNER` 覆盖；如仓库启用了分支保护，需自行调整提交/推送方式
 - 与 `project-hub` 的区别：本 skill 管「我收藏的**别人的**仓库」，`project-hub` 管「我**自己的**仓库」
 
 ## 常见问题
