@@ -1,11 +1,11 @@
-# agent-skills-zh · 中文社区 Agent Skills 合集
+# agent-skills-zh · 自用 Agent Skills 集合
 
-> 面向中文开发者的可安装 Agent Skill 集合：**捕获 → 美化 → 发布 → 展示**，覆盖个人开发者的完整「作品展示」链路。
+> 可安装的 Agent Skill 集合：**捕获 → 美化 → 发布 → 展示**，覆盖个人开发者的完整「作品展示」链路。
 > 兼容 opencode / Claude Code / Codex 等主流 AI 编程工具。
 >
 > **English**: [README.en.md](./README.en.md)
 
-在 GitHub 上搜「agent skills」，前排全是英文巨无霸（addyosmani ★91k、vercel-labs ★30k）。**中文社区还是一片蓝海**——这个仓库就是为中文开发者准备的：全中文文档、中文语义触发、开箱即用。
+全中文文档、中文语义触发、开箱即用的 Agent Skills 合集。
 
 ## Skill 一览
 
@@ -71,15 +71,6 @@ bash skills/gh-pages/scripts/setup-pages.sh holtwood/agent-skills-zh
 ## 新增 Skill
 
 想往合集里加新 skill？先读 [`docs/SKILL-TEMPLATE.md`](./docs/SKILL-TEMPLATE.md) 的编写规范，保持风格统一。
-
-## 路线图
-
-- [x] 截图链路：`wsl-capture` + `shotframe`（浏览器 / macOS 边框）
-- [x] 设备框：iPhone / iPad / MacBook
-- [x] `gh-pages`：多框架探测（Vite / Hugo / VitePress / Jekyll）
-- [x] `gh-stars`：中文分类翻译 + CI 自动同步
-- [x] `project-hub`：精选区 + 分组导航 + 每周审计
-- [x] 中英双语 README
 
 ## 许可
 

@@ -1,11 +1,11 @@
-# agent-skills-zh · Chinese Community Agent Skills Collection
+# agent-skills-zh · Personal Agent Skills Collection
 
-> Installable Agent Skills for Chinese-speaking developers: **Capture → Beautify → Publish → Showcase**, covering a developer's full "showcase" workflow.
+> Installable Agent Skills: **Capture → Beautify → Publish → Showcase**, covering a developer's full "showcase" workflow.
 > Compatible with opencode / Claude Code / Codex and other mainstream AI coding tools.
 >
 > **中文**: [README.md](./README.md)
 
-A curated, fully-Chinese Agent Skills collection with Chinese trigger semantics — documentation, output messages, and examples are all in Chinese, ready to use out of the box.
+Agent Skills collection with Chinese documentation and trigger semantics — ready to use out of the box.
 
 ## Skills
 
@@ -71,15 +71,6 @@ bash skills/gh-pages/scripts/setup-pages.sh holtwood/agent-skills-zh
 ## Adding a new skill
 
 Want to add a skill to the collection? Read the authoring conventions in [`docs/SKILL-TEMPLATE.md`](./docs/SKILL-TEMPLATE.md) first to keep the style consistent.
-
-## Roadmap
-
-- [x] Screenshot chain: `wsl-capture` + `shotframe` (browser / macOS frames)
-- [x] Device frames: iPhone / iPad / MacBook
-- [x] `gh-pages`: multi-framework detection (Vite / Hugo / VitePress / Jekyll)
-- [x] `gh-stars`: Chinese category mapping + CI auto-sync
-- [x] `project-hub`: featured section + group navigation + weekly audit
-- [x] Bilingual README
 
 ## License
 
