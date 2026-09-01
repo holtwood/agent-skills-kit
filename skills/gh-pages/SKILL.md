@@ -26,25 +26,29 @@ description: "为 GitHub 仓库配置 GitHub Pages：自动探测仓库构建工
    gh api repos/<owner/repo>/pages --jq .status   # 200=已开 Pages，404=未开
    ```
 2. **探测构建工具**（决定用「Workflow 部署」还是「分支部署」）：
-   - `package.json` 含 `scripts.build` → 构建型，用 GitHub Actions workflow
-   - 其他（Hugo / VitePress / 纯静态 README、index.html）→ 分支部署（`/docs` 目录）
+   - `hugo.toml` / `hugo.yaml` / `hugo.json` / `config.toml` → **hugo**（产物默认 `public`，用 Hugo 构建 workflow；hugo 配置优先于 package.json，因为 Hugo 站常带 package.json 做资源构建）
+   - `package.json` 依赖含 `vitepress` → **vitepress**（产物默认 `docs/.vitepress/dist`；兼容官方脚手架默认的 `docs:build` 脚本，自动改用 `npm run docs:build`）
+   - `package.json` 含 `scripts.build` → **node**（Vite / Vue / React 等通用构建）
+   - `_config.yml` → **jekyll**（Pages 原生构建，源指向仓库根，走分支部署）
+   - 其他（纯静态 README、index.html）→ **branch**（分支部署，默认 `/docs` 目录）
    （与 `setup-pages.sh` 的 `detect_builder` 一致）
 3. **执行部署**：
-   - 构建型 → 写入 `.github/workflows/gh-pages.yml`（本 skill 内置模板），`gh api` 设置 Pages 为 GitHub Actions 源
-   - 纯静态 → 用 `gh api` 把 Pages 源指向 `main` 分支的 `/docs` 或独立 `gh-pages` 分支（`/docs` 更简单）
+   - node / vitepress / hugo → 写入 `.github/workflows/gh-pages.yml`（按框架生成对应构建步骤），`gh api` 设置 Pages 为 GitHub Actions 源
+   - jekyll / 纯静态 → 用 `gh api` 把 Pages 源指向默认分支（Jekyll 用仓库根 `/`，静态站用 `/docs` 或指定目录）
 4. **验证**：等 workflow 跑完（或 `gh api repos/.../pages` 查询状态），报告 `https://<owner>.github.io/<repo>/` 给用户
 
 ## 命令契约
 
 ```bash
-bash <skill目录>/scripts/setup-pages.sh <owner/repo> [--mode auto|workflow|branch] [--dir docs] [--branch main]
+bash <skill目录>/scripts/setup-pages.sh <owner/repo> [--mode auto|workflow|branch] [--dir docs] [--branch main] [--output dist]
 ```
 
 | 参数 | 说明 | 默认 |
 | --- | --- | --- |
 | `--mode` | `auto` 自动探测 / `workflow` 强制 Actions / `branch` 强制分支 | `auto` |
-| `--dir` | 分支部署的目录（如 `docs`） | `docs` |
+| `--dir` | 分支部署的目录（如 `docs`；Jekyll 自动用仓库根）。注意 GitHub 分支部署源只支持 `/` 或 `/docs` | `docs` |
 | `--branch` | 分支部署推送到哪个分支 | 当前默认分支 |
+| `--output` | 覆盖 workflow 构建产物目录（auto 与强制 workflow 模式均按探测到的框架取默认：node=`dist`、vitepress=`docs/.vitepress/dist`、hugo=`public`） | 自动 |
 
 ## 示例
 
@@ -52,15 +56,19 @@ bash <skill目录>/scripts/setup-pages.sh <owner/repo> [--mode auto|workflow|bra
 # 自动模式（推荐）
 bash scripts/setup-pages.sh holtwood/my-project
 
-# 文档站强制 Actions 部署
+# 文档站强制 Actions 部署（VitePress 会自动用 docs/.vitepress/dist）
 bash scripts/setup-pages.sh holtwood/docs-site --mode workflow
+
+# Hugo 站，自定义产物目录
+bash scripts/setup-pages.sh holtwood/blog --output public
 ```
 
 ## 实现说明
 
 - 依赖：[`gh` CLI](https://cli.github.com/) 已登录（`gh auth status` 检查）
 - 需要 `workflow` 或 `pages` 相关权限的 token/账号
-- workflow 模板内置了 `actions/configure-pages` + `actions/deploy-pages` 的标准流程
+- workflow 模板按框架生成：node/vitepress 用 `actions/setup-node`（`npm ci` 失败自动回退 `npm install`），hugo 用 `peaceiris/actions-hugo` + `hugo --minify`，统一走 `actions/configure-pages` + `actions/deploy-pages` 标准流程
+- Jekyll 不走 Actions：GitHub Pages 对 Jekyll 有原生构建，源设为仓库根即可
 
 ## 常见问题
 

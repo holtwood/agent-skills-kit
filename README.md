@@ -2,6 +2,8 @@
 
 > 面向中文开发者的可安装 Agent Skill 集合：**捕获 → 美化 → 发布 → 展示**，覆盖个人开发者的完整「作品展示」链路。
 > 兼容 opencode / Claude Code / Codex 等主流 AI 编程工具。
+>
+> **English**: [README.en.md](./README.en.md)
 
 在 GitHub 上搜「agent skills」，前排全是英文巨无霸（addyosmani ★91k、vercel-labs ★30k）。**中文社区还是一片蓝海**——这个仓库就是为中文开发者准备的：全中文文档、中文语义触发、开箱即用。
 
@@ -10,10 +12,10 @@
 | Skill | 能力 | 场景 |
 | --- | --- | --- |
 | [`wsl-capture`](./skills/wsl-capture/) | WSL 环境截图 | 「帮我在 WSL 截个屏 / 截网页 / 截窗口」 |
-| [`shotframe`](./skills/shotframe/) | 截图套框 | 「给截图加个 macOS / 浏览器边框」 |
-| [`gh-pages`](./skills/gh-pages/) | GitHub Pages 配置 | 「帮我给 xxx 仓库开 GitHub Pages」 |
-| [`gh-stars`](./skills/gh-stars/) | Star 收藏索引站 | 「把我的收藏生成一个展示站」 |
-| [`project-hub`](./skills/project-hub/) | 仓库导航站 | 「做一个列出我所有仓库的导航站」 |
+| [`shotframe`](./skills/shotframe/) | 截图套框（浏览器 / macOS / 设备框） | 「给截图加个边框」「套个 iPhone / MacBook 框」 |
+| [`gh-pages`](./skills/gh-pages/) | GitHub Pages 配置（多框架探测） | 「帮我给 xxx 仓库开 GitHub Pages」 |
+| [`gh-stars`](./skills/gh-stars/) | Star 收藏索引站（中文分类 + CI 同步） | 「把我的收藏生成一个展示站」 |
+| [`project-hub`](./skills/project-hub/) | 仓库导航站（精选区 + 每周审计） | 「做一个列出我所有仓库的导航站」 |
 
 ## 设计理念
 
@@ -47,19 +49,22 @@ cd ~/agent-skills-zh
 ## 快速上手
 
 ```bash
-# 截图 → 套框 一条龙
+# 截图 → 套框 一条龙（窗口框 / 设备框）
 bash skills/wsl-capture/scripts/capture.sh browser https://example.com -o ~/shots/page.png
 node skills/shotframe/scripts/frame.js --input ~/shots/page.png --preset macos --output ~/shots/page-macos.png
+node skills/shotframe/scripts/frame.js --input ~/shots/app.png --preset device --device iphone --output ~/shots/app-iphone.png
 
-# Star 收藏站（拉取 → 生成索引，参考 page-stars 模式）
+# Star 收藏站（拉取 → 生成索引 → 配置每周 CI 同步）
 bash skills/gh-stars/scripts/fetch-stars.sh holtwood data/starred_full.json
 python3 skills/gh-stars/scripts/gen-index.py data/starred_full.json docs/index.html --title "我的收藏"
+bash skills/gh-stars/scripts/setup-ci.sh .
 
-# 仓库导航站（拉取 → 生成导航页，参考 page-repos 模式）
+# 仓库导航站（拉取 → 生成导航页 → 配置每周审计）
 bash skills/project-hub/scripts/fetch-repos.sh holtwood data/repos.json
-python3 skills/project-hub/scripts/gen-hub.py data/repos.json docs/index.html --title "我的项目"
+python3 skills/project-hub/scripts/gen-hub.py data/repos.json docs/index.html --title "我的项目" --featured my-app
+bash skills/project-hub/scripts/setup-ci.sh .
 
-# 或部署为 GitHub Pages（以本仓库为例）
+# 或部署为 GitHub Pages（自动探测 Vite / Hugo / VitePress / Jekyll）
 bash skills/gh-pages/scripts/setup-pages.sh holtwood/agent-skills-zh
 ```
 
@@ -70,11 +75,11 @@ bash skills/gh-pages/scripts/setup-pages.sh holtwood/agent-skills-zh
 ## 路线图
 
 - [x] 截图链路：`wsl-capture` + `shotframe`（浏览器 / macOS 边框）
-- [ ] 设备框：iPhone / iPad / MacBook
-- [ ] `gh-pages`：多框架探测（Vite / Hugo / VitePress / Jekyll）
-- [ ] `gh-stars`：中文分类翻译 + CI 自动同步
-- [ ] `project-hub`：精选区 + 分组导航 + 每周审计
-- [ ] 中英双语 README
+- [x] 设备框：iPhone / iPad / MacBook
+- [x] `gh-pages`：多框架探测（Vite / Hugo / VitePress / Jekyll）
+- [x] `gh-stars`：中文分类翻译 + CI 自动同步
+- [x] `project-hub`：精选区 + 分组导航 + 每周审计
+- [x] 中英双语 README
 
 ## 许可
 

@@ -40,24 +40,64 @@ def main():
 
     desc_zh = load_desc(args.desc_zh)
 
+    # topic → 中文分类（按优先级取首个命中；topics 通常是英文标签）
+    TOPIC_CATS = {
+        'awesome-list': 'Awesome 合集', 'awesome': 'Awesome 合集', 'awesome-list-zh': 'Awesome 合集',
+        'resources': 'Awesome 合集', 'reading-list': 'Awesome 合集',
+        'ai': 'AI / 大模型', 'machine-learning': 'AI / 大模型', 'deep-learning': 'AI / 大模型',
+        'llm': 'AI / 大模型', 'large-language-model': 'AI / 大模型', 'generative-ai': 'AI / 大模型',
+        'agent': 'AI / 大模型', 'ai-agents': 'AI / 大模型', 'llm-agent': 'AI / 大模型',
+        'rag': 'AI / 大模型', 'langchain': 'AI / 大模型', 'mcp': 'AI / 大模型',
+        'prompt': 'AI / 大模型', 'prompt-engineering': 'AI / 大模型',
+        'nlp': 'AI / 大模型', 'natural-language-processing': 'AI / 大模型',
+        'computer-vision': 'AI / 大模型', 'stable-diffusion': 'AI / 大模型',
+        'frontend': '前端', 'web': '前端', 'css': '前端', 'ui': '前端',
+        'react': '前端', 'vue': '前端', 'vuejs': '前端', 'svelte': '前端',
+        'nextjs': '前端', 'tailwindcss': '前端', 'component-library': '前端',
+        'backend': '后端', 'api': '后端', 'microservices': '后端', 'graphql': '后端',
+        'database': '数据库', 'sql': '数据库', 'mysql': '数据库', 'postgresql': '数据库',
+        'mongodb': '数据库', 'redis': '数据库', 'sqlite': '数据库', 'nosql': '数据库',
+        'devops': '运维 / DevOps', 'docker': '运维 / DevOps', 'kubernetes': '运维 / DevOps',
+        'k8s': '运维 / DevOps', 'ci': '运维 / DevOps', 'terraform': '运维 / DevOps',
+        'infrastructure': '运维 / DevOps', 'self-hosted': '运维 / DevOps', 'selfhosted': '运维 / DevOps',
+        'homelab': '运维 / DevOps', 'cloud-native': '运维 / DevOps', 'observability': '运维 / DevOps',
+        'monitoring': '运维 / DevOps', 'nginx': '运维 / DevOps', 'linux': '运维 / DevOps',
+        'security': '安全', 'cybersecurity': '安全', 'hacking': '安全', 'cryptography': '安全', 'privacy': '安全',
+        'data-science': '数据科学', 'data': '数据科学', 'data-visualization': '数据科学',
+        'analytics': '数据科学', 'pandas': '数据科学', 'jupyter': '数据科学', 'big-data': '数据科学',
+        'cli': '工具 / 效率', 'command-line': '工具 / 效率', 'terminal': '工具 / 效率',
+        'developer-tools': '工具 / 效率', 'productivity': '工具 / 效率', 'automation': '工具 / 效率',
+        'utility': '工具 / 效率', 'dotfiles': '工具 / 效率', 'vim': '工具 / 效率', 'neovim': '工具 / 效率',
+        'zsh': '工具 / 效率', 'git': '工具 / 效率', 'github': '工具 / 效率',
+        'education': '学习 / 文档', 'tutorial': '学习 / 文档', 'documentation': '学习 / 文档',
+        'book': '学习 / 文档', 'course': '学习 / 文档', 'cheatsheet': '学习 / 文档', 'interview': '学习 / 文档',
+        'ios': '桌面 / 移动', 'swift': '桌面 / 移动', 'android': '桌面 / 移动', 'kotlin': '桌面 / 移动',
+        'flutter': '桌面 / 移动', 'react-native': '桌面 / 移动', 'desktop': '桌面 / 移动', 'mobile': '桌面 / 移动',
+        'electron': '桌面 / 移动', 'tauri': '桌面 / 移动', 'macos': '桌面 / 移动',
+        'game': '游戏开发', 'gamedev': '游戏开发', 'game-development': '游戏开发',
+    }
+    # language → 中文分类（在 topic 未命中时兜底）
+    LANG_CATS = {
+        'JavaScript': '前端', 'TypeScript': '前端', 'Vue': '前端', 'React': '前端',
+        'HTML': '前端', 'CSS': '前端', 'Svelte': '前端', 'Astro': '前端',
+        'Python': '后端 / Python', 'Go': '后端 / Go', 'Rust': '后端 / Rust',
+        'Java': '后端 / Java', 'C#': '后端', 'PHP': '后端', 'Ruby': '后端',
+        'C': '系统 / 底层', 'C++': '系统 / 底层', 'Zig': '系统 / 底层', 'Assembly': '系统 / 底层',
+        'Shell': '脚本 / 自动化', 'PowerShell': '脚本 / 自动化', 'Lua': '脚本 / 自动化',
+        'Swift': '桌面 / 移动', 'Kotlin': '桌面 / 移动', 'Dart': '桌面 / 移动', 'Objective-C': '桌面 / 移动',
+        'Jupyter Notebook': '数据科学', 'R': '数据科学', 'Julia': '数据科学',
+        'TeX': '文档 / 排版', 'Markdown': '文档 / 排版', 'Dockerfile': '运维 / DevOps',
+    }
+
     def category(repo):
         topics = repo.get('topics') or []
-        lang = repo.get('language') or '其他'
         if repo.get('fork'):
             return 'Fork'
         for t in topics:
-            if t in {'awesome-list', 'awesome', 'awesome-list-zh', 'resources', 'reading-list'}:
-                return 'Awesome 合集'
-            if t in {'javascript', 'typescript', 'python', 'go', 'rust'}:
-                return '开发工具'
-            if t in {'machine-learning', 'ai', 'llm', 'agent', 'deep-learning'}:
-                return 'AI / 大模型'
-        mapping = {
-            'JavaScript': '前端', 'TypeScript': '前端', 'Vue': '前端', 'React': '前端',
-            'Python': '后端/Python', 'Go': '后端/Go', 'Rust': '后端/Rust',
-            'Shell': '脚本工具', 'C': '底层', 'C++': '底层',
-        }
-        return mapping.get(lang, '其他')
+            t = t.lower()
+            if t in TOPIC_CATS:
+                return TOPIC_CATS[t]
+        return LANG_CATS.get(repo.get('language') or '', '其他')
 
     grouped = {}
     for s in stars:

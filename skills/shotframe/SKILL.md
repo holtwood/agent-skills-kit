@@ -1,17 +1,18 @@
 ---
 name: "shotframe"
-description: "给真实截图套上浏览器边框或 macOS 窗口框，输出精致的成品图。零依赖（只需系统 Chromium），确定性渲染（不使用任何图像生成模型）。适用于 README 配图、产品文档、应用商店截图、博客头图。"
+description: "给真实截图套上浏览器边框、macOS 窗口框或设备框（iPhone / iPad / MacBook），输出精致的成品图。零依赖（只需系统 Chromium），确定性渲染（不使用任何图像生成模型）。适用于 README 配图、产品文档、应用商店截图、博客头图。触发场景：'给这张截图加个手机框'、'做成 iPhone 截图效果'、'给截图加个浏览器边框'。"
 ---
 
 # Shotframe · 截图套框
 
-把一张「裸截图」变成有产品感的成品图：**macOS 窗口框** 或 **浏览器边框**。
+把一张「裸截图」变成有产品感的成品图：**浏览器边框**、**macOS 窗口框** 或 **设备框（iPhone / iPad / MacBook）**。
 
 ## 何时使用
 
 - 用户想把截图放进 README / 文档 / 博客，希望好看一点
 - 用户提供截图文件路径，要求「加个边框/加个框」
 - 用户想要应用商店（App Store / Play）风格的展示图
+- 用户说「给我截图套个手机/电脑框」——移动端截图配 iPhone / iPad 框，桌面端配 MacBook 框
 - 批量给一组截图统一风格
 
 ## 何时不要用
@@ -25,7 +26,7 @@ description: "给真实截图套上浏览器边框或 macOS 窗口框，输出�
 ```bash
 node <skill目录>/scripts/frame.js \
   --input <截图路径> \
-  --preset <browser|macos> \
+  --preset <browser|macos|device> \
   --output <输出路径.png>
 ```
 
@@ -33,17 +34,19 @@ node <skill目录>/scripts/frame.js \
 
 | 参数 | 说明 | 默认 |
 | --- | --- | --- |
-| `--preset` | `browser` 浏览器边框 / `macos` macOS 窗口框 | `browser` |
+| `--preset` | `browser` 浏览器边框 / `macos` macOS 窗口框 / `device` 设备框 | `browser` |
+| `--device` | 设备框机型：`iphone` / `ipad` / `macbook`（仅 `--preset device` 时生效） | `iphone` |
 | `--title` | 窗口标题（macOS 标题栏 / 浏览器标签页） | 不显示 |
 | `--url` | 浏览器地址栏 URL | 不显示 |
 | `--background` | 背景：`light` / `dark` | `light` |
-| `--padding` | 窗口四周留白（px） | `56` |
+| `--padding` | 设备/窗口四周留白（px） | `56` |
 | `--chromium` | 指定 Chromium 可执行文件路径 | 自动探测 |
 
 ## 预设说明
 
 - **`macos`**：圆角窗口 + 居中标题栏 + 红黄绿信号灯 + 柔和投影
 - **`browser`**：标签页 + 地址栏（锁图标 + URL）+ 同款投影
+- **`device`**：按机型渲染真实感设备框——`iphone` 灵动岛 + home 指示条 + 侧边按键，`ipad` 顶部摄像头 + home 指示条，`macbook` 铝制机身 + 屏幕刘海 + 底部下巴（含 Apple logo）。截图按设备屏幕宽度等比缩放填充
 
 ## 工作流
 
@@ -51,6 +54,7 @@ node <skill目录>/scripts/frame.js \
 2. **选 preset**：
    - Web 应用 / 仪表盘 → `browser`（除非用户点名 macOS）
    - 桌面应用 → `macos`
+   - 移动端 App 截图 → `device` + `--device iphone`（或用户指名的机型）；桌面端产品图想要笔记本效果 → `device` + `--device macbook`
 3. **渲染**：输出路径用描述性文件名（如 `pricing-browser.png`）。按需加 `--title` / `--url`。默认浅色背景，若截图本身是深色 UI 可换 `--background dark`。
 4. **验证**：确认输出文件存在且非空，把结果路径汇报给用户。
 5. 结果图可直接用于 README / 文档（配 `./docs/screenshots/xxx.png` 相对路径）。
@@ -66,11 +70,26 @@ node scripts/frame.js --input ./tmp/desktop.png --preset macos \
 node scripts/frame.js --input ./tmp/dark-ui.png --preset browser \
   --title "Dashboard" --url app.example.com --background dark \
   --output ./docs/screenshots/dashboard-browser.png
+
+# iPhone 设备框（移动端截图）
+node scripts/frame.js --input ./tmp/app-ios.png --preset device --device iphone \
+  --output ./docs/screenshots/app-iphone.png
+
+# MacBook 设备框（桌面端截图）
+node scripts/frame.js --input ./tmp/app-desktop.png --preset device --device macbook \
+  --output ./docs/screenshots/app-macbook.png
 ```
+
+## 示例效果
+
+![iPhone 设备框](../../docs/screenshots/device-iphone.png)
+
+![MacBook 设备框](../../docs/screenshots/device-macbook.png)
 
 ## 实现说明
 
 - **零 npm 依赖**：渲染 = Node 标准库生成 HTML + 系统 Chromium 无头截图（`--force-device-scale-factor=2` 保证清晰度）
+- 设备框为纯 CSS 绘制（机身 / 灵动岛 / 刘海 / 按键 / logo 均为样式实现），截图按设备屏幕宽度等比缩放填充，不拉伸变形
 - Chromium 自动探测顺序：`SHOTFRAME_CHROMIUM` 环境变量 → Playwright 缓存目录 → `which chromium / google-chrome / chrome`
 - 输入格式：PNG（自动读取宽高，无需额外库）
 - 输出 2 倍尺寸（等价 Retina），README 里按需 `width=` 限制显示

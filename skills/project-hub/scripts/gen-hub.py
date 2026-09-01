@@ -3,7 +3,8 @@
 project-hub — 把仓库列表生成自包含导航主页（Python 标准库，零依赖）
 
 用法:
-  gen-hub.py <repos.json> <out.html> [--desc-zh desc_zh.json] [--title 标题] [--owner 用户名] [--group-by language|type]
+  gen-hub.py <repos.json> <out.html> [--desc-zh desc_zh.json] [--title 标题] [--owner 用户名]
+             [--group-by language|type] [--featured a,b,c]
 """
 import argparse
 import html
@@ -29,6 +30,27 @@ def load_desc(path):
     except Exception:
         return {}
 
+def card(r):
+    lang = r.get('language') or ''
+    color = LANG_COLORS.get(lang, '#94a3b8')
+    desc = r.get('description') or '（无描述）'
+    stars = r.get('stargazersCount') or 0
+    updated = (r.get('updatedAt') or '')[:10]
+    badges = ''
+    if r.get('fork'):
+        badges += '<span class="b fork">Fork</span>'
+    if r.get('archived'):
+        badges += '<span class="b arc">归档</span>'
+    return f'''<a class="card" href="{esc(r.get('url') or ('https://github.com/' + esc(r.get('name', ''))))}" target="_blank" rel="noopener">
+  <div class="head"><span class="name">{esc(r['name'])}</span>{badges}</div>
+  <p class="desc">{esc(desc)}</p>
+  <div class="meta">
+    <span class="lang"><i style="background:{color}"></i>{esc(lang)}</span>
+    <span class="stars">★ {stars:,}</span>
+    <span class="time">{updated}</span>
+  </div>
+</a>'''
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('repos_json')
@@ -37,12 +59,14 @@ def main():
     ap.add_argument('--title', default='我的项目')
     ap.add_argument('--owner', default='')
     ap.add_argument('--group-by', default='type', choices=['type', 'language'])
+    ap.add_argument('--featured', default='', help='精选仓库名（逗号分隔），渲染在页面顶部的精选区')
     args = ap.parse_args()
 
     with open(args.repos_json, encoding='utf-8') as f:
         repos = json.load(f)
 
     desc_zh = load_desc(args.desc_zh)
+    featured_names = [n.strip() for n in args.featured.split(',') if n.strip()]
 
     def group_of(r):
         if r.get('archived'):
@@ -58,41 +82,35 @@ def main():
             return '个人站点'
         return '项目'
 
-    grouped = {}
     for r in repos:
-        r = dict(r)
         if desc_zh and r.get('name') in desc_zh:
             r['description'] = desc_zh[r['name']]
+
+    # 精选区：按 --featured 顺序挑出仓库，并从普通分组中移除避免重复
+    featured = []
+    if featured_names:
+        by_name = {r.get('name'): r for r in repos}
+        for n in featured_names:
+            if n in by_name:
+                featured.append(by_name[n])
+        featured_names_set = set(featured_names)
+        repos = [r for r in repos if r.get('name') not in featured_names_set]
+
+    grouped = {}
+    for r in repos:
         grouped.setdefault(group_of(r), []).append(r)
 
     order = sorted(grouped.keys(), key=lambda g: {'个人站点': 0, '项目': 1, 'Awesome 合集': 2, 'Fork': 3, '归档': 4}.get(g, 5))
-    total = len(repos)
+    total = len(repos) + len(featured)
 
     sections = []
+    if featured:
+        sections.append('<h2 class="grp feat-h" data-cat="⭐ 精选">⭐ 精选 <span class="n">%d</span></h2><div class="grid" data-g="feat">%s</div>'
+                        % (len(featured), ''.join(card(r) for r in sorted(featured, key=lambda x: x.get('stargazersCount') or 0, reverse=True))))
     for group in order:
         items = sorted(grouped[group], key=lambda x: x.get('stargazersCount') or 0, reverse=True)
-        cards = []
-        for r in items:
-            lang = r.get('language') or ''
-            color = LANG_COLORS.get(lang, '#94a3b8')
-            desc = r.get('description') or '（无描述）'
-            stars = r.get('stargazersCount') or 0
-            updated = (r.get('updatedAt') or '')[:10]
-            badges = ''
-            if r.get('fork'):
-                badges += '<span class="b fork">Fork</span>'
-            if r.get('archived'):
-                badges += '<span class="b arc">归档</span>'
-            cards.append(f'''<a class="card" href="{esc(r.get('url') or ('https://github.com/' + esc(r.get('name', ''))))}" target="_blank" rel="noopener">
-  <div class="head"><span class="name">{esc(r['name'])}</span>{badges}</div>
-  <p class="desc">{esc(desc)}</p>
-  <div class="meta">
-    <span class="lang"><i style="background:{color}"></i>{esc(lang)}</span>
-    <span class="stars">★ {stars:,}</span>
-    <span class="time">{updated}</span>
-  </div>
-</a>''')
-        sections.append(f'<h2 class="grp">{esc(group)} <span class="n">{len(items)}</span></h2><div class="grid">{"".join(cards)}</div>')
+        sections.append('<h2 class="grp" data-cat="%s">%s <span class="n">%d</span></h2><div class="grid">%s</div>'
+                        % (esc(group), esc(group), len(items), ''.join(card(r) for r in items)))
 
     html_page = f'''<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8">
@@ -108,9 +126,16 @@ def main():
   .wrap {{ max-width:1080px; margin:0 auto; padding:0 24px; }}
   input[type=search] {{ width:100%; margin:20px 0 8px; padding:10px 14px; border-radius:10px;
           border:1px solid #cbd5e1; font-size:14px; background:#fff; }}
+  .cats {{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px; }}
+  .cats button {{ padding:5px 12px; border-radius:999px; border:1px solid #cbd5e1; background:#fff;
+          font-size:12px; cursor:pointer; color:#475569; }}
+  .cats button.on {{ background:#f97316; color:#fff; border-color:#f97316; }}
   h2.grp {{ font-size:16px; margin:28px 0 12px; }}
   h2.grp .n {{ color:#94a3b8; font-size:12px; }}
+  h2.feat-h {{ color:#ea580c; }}
   .grid {{ display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:12px; }}
+  .grid[data-g="feat"] .card {{ border-color:#fdba74; background:linear-gradient(180deg,#fff7ed,#fff); }}
+  .grid[data-g="feat"] .card:hover {{ border-color:#f97316; }}
   .card {{ display:block; background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:14px;
           text-decoration:none; color:inherit; transition:.15s; }}
   .card:hover {{ transform:translateY(-2px); box-shadow:0 8px 24px rgba(15,23,42,.08); border-color:#f97316; }}
@@ -134,20 +159,37 @@ def main():
 </div></header>
 <div class="wrap">
   <input type="search" id="q" placeholder="搜索仓库名 / 描述...">
+  <div class="cats" id="cats"><button class="on" data-cat="">全部</button></div>
   {"".join(sections)}
 </div>
 <footer>Generated by <a href="https://github.com/holtwood/agent-skills-zh">agent-skills-zh/project-hub</a></footer>
 <script>
-  document.getElementById('q').oninput = function () {{
-    const kw = this.value.trim().toLowerCase();
-    document.querySelectorAll('.card').forEach(c => {{
-      c.style.display = (!kw || c.textContent.toLowerCase().includes(kw)) ? '' : 'none';
+  const cats = [...new Set([...document.querySelectorAll('h2.grp')].map(h => h.dataset.cat))];
+  const btnBox = document.getElementById('cats');
+  const allBtn = btnBox.querySelector('button');
+  allBtn.onclick = () => {{
+    document.querySelectorAll('#cats button').forEach(x => x.classList.remove('on'));
+    allBtn.classList.add('on'); apply();
+  }};
+  cats.forEach(c => {{ const b = document.createElement('button'); b.textContent = c; b.dataset.cat = c;
+    b.onclick = () => {{ document.querySelectorAll('#cats button').forEach(x => x.classList.remove('on'));
+      b.classList.add('on'); apply(); }}; btnBox.appendChild(b); }});
+  const q = document.getElementById('q');
+  function apply() {{
+    const cat = document.querySelector('#cats button.on')?.dataset.cat || '';
+    const kw = q.value.trim().toLowerCase();
+    document.querySelectorAll('.card').forEach(el => {{
+      const inCat = !cat || el.closest('.grid').previousElementSibling.dataset.cat === cat;
+      const hitKw = !kw || el.textContent.toLowerCase().includes(kw);
+      el.style.display = inCat && hitKw ? '' : 'none';
     }});
     document.querySelectorAll('h2.grp').forEach(h => {{
       const visible = [...h.nextElementSibling.querySelectorAll('.card')].some(c => c.style.display !== 'none');
       h.style.display = visible ? '' : 'none';
+      h.nextElementSibling.style.display = visible ? '' : 'none';
     }});
-  }};
+  }}
+  q.oninput = apply;
 </script>
 </body></html>'''
 
@@ -155,7 +197,7 @@ def main():
     os.makedirs(os.path.dirname(os.path.abspath(args.out_html)), exist_ok=True)
     with open(args.out_html, 'w', encoding='utf-8') as f:
         f.write(html_page)
-    print(f'✅ 已生成 {args.out_html}（{total} 个仓库，{len(order)} 个分组）')
+    print(f'✅ 已生成 {args.out_html}（{total} 个仓库，{len(order) + (1 if featured else 0)} 个分区，精选 {len(featured)} 个）')
 
 if __name__ == '__main__':
     main()
