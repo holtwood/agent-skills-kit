@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# agent-skills-zh 一键安装：把指定 skill 链接到 opencode 与 Claude Code
+# my-agent-skills 一键安装：把指定 skill 链接到 opencode 与 Claude Code
 #
 # 用法:
 #   ./install.sh                 # 安装全部 skill
