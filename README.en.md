@@ -13,6 +13,7 @@ Agent Skills collection with Chinese documentation and trigger semantics — rea
 | --- | --- | --- |
 | [`wsl-capture`](./skills/wsl-capture/) | Screenshots in WSL | "take a screenshot / capture a web page / capture a window in WSL" |
 | [`shotframe`](./skills/shotframe/) | Screenshot framing (browser / macOS / device) | "add a frame to this screenshot", "wrap it in an iPhone / MacBook bezel" |
+| [`archify`](./skills/archify/) | Architecture / workflow / sequence / dataflow / lifecycle diagrams (self-contained HTML + SVG, theming & export) | "draw a system architecture diagram", "turn this Mermaid into an interactive diagram" |
 | [`gh-pages`](./skills/gh-pages/) | GitHub Pages setup (multi-framework detection) | "enable GitHub Pages for this repo" |
 | [`gh-stars`](./skills/gh-stars/) | Star collection index site (Chinese categories + CI sync) | "turn my stars into a showcase page" |
 | [`project-hub`](./skills/project-hub/) | Repo navigation site (featured section + weekly audit) | "make a navigation page listing all my repos" |
@@ -54,6 +55,10 @@ bash skills/wsl-capture/scripts/capture.sh browser https://example.com -o ~/shot
 node skills/shotframe/scripts/frame.js --input ~/shots/page.png --preset macos --output ~/shots/page-macos.png
 node skills/shotframe/scripts/frame.js --input ~/shots/app.png --preset device --device iphone --output ~/shots/app-iphone.png
 
+# Architecture diagram (JSON spec → validate → deliver as self-contained HTML)
+node skills/archify/bin/archify.mjs validate architecture skills/archify/examples/checkout-platform.base.architecture.json --quality showcase --json
+node skills/archify/bin/archify.mjs deliver architecture skills/archify/examples/checkout-platform.base.architecture.json docs/architecture.html --quality showcase --json
+
 # Star collection site (fetch → generate index → weekly CI sync)
 bash skills/gh-stars/scripts/fetch-stars.sh holtwood data/starred_full.json
 python3 skills/gh-stars/scripts/gen-index.py data/starred_full.json docs/index.html --title "My stars"
@@ -66,6 +71,15 @@ bash skills/project-hub/scripts/setup-ci.sh .
 
 # Or deploy as GitHub Pages (auto-detects Vite / Hugo / VitePress / Jekyll)
 bash skills/gh-pages/scripts/setup-pages.sh holtwood/my-agent-skills
+```
+
+## Maintaining archify
+
+archify is a third-party open-source skill ([tt-a1i/archify](https://github.com/tt-a1i/archify), MIT) that is updated frequently. To keep in sync:
+
+```bash
+./scripts/update-archify.sh --check   # check only whether a new version exists
+./scripts/update-archify.sh           # fetch official release asset → verify sha256 against official manifest → replace skills/archify/
 ```
 
 ## Adding a new skill

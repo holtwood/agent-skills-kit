@@ -13,6 +13,7 @@
 | --- | --- | --- |
 | [`wsl-capture`](./skills/wsl-capture/) | WSL 环境截图 | 「帮我在 WSL 截个屏 / 截网页 / 截窗口」 |
 | [`shotframe`](./skills/shotframe/) | 截图套框（浏览器 / macOS / 设备框） | 「给截图加个边框」「套个 iPhone / MacBook 框」 |
+| [`archify`](./skills/archify/) | 架构 / 流程 / 时序 / 数据流 / 状态图（自包含 HTML + SVG，主题切换与导出） | 「画一张系统架构图」「把这个 Mermaid 转成可交互的图」 |
 | [`gh-pages`](./skills/gh-pages/) | GitHub Pages 配置（多框架探测） | 「帮我给 xxx 仓库开 GitHub Pages」 |
 | [`gh-stars`](./skills/gh-stars/) | Star 收藏索引站（中文分类 + CI 同步） | 「把我的收藏生成一个展示站」 |
 | [`project-hub`](./skills/project-hub/) | 仓库导航站（精选区 + 每周审计） | 「做一个列出我所有仓库的导航站」 |
@@ -54,6 +55,10 @@ bash skills/wsl-capture/scripts/capture.sh browser https://example.com -o ~/shot
 node skills/shotframe/scripts/frame.js --input ~/shots/page.png --preset macos --output ~/shots/page-macos.png
 node skills/shotframe/scripts/frame.js --input ~/shots/app.png --preset device --device iphone --output ~/shots/app-iphone.png
 
+# 架构图（用 JSON 规格描述 → 校验 → 交付为自包含 HTML）
+node skills/archify/bin/archify.mjs validate architecture skills/archify/examples/checkout-platform.base.architecture.json --quality showcase --json
+node skills/archify/bin/archify.mjs deliver architecture skills/archify/examples/checkout-platform.base.architecture.json docs/architecture.html --quality showcase --json
+
 # Star 收藏站（拉取 → 生成索引 → 配置每周 CI 同步）
 bash skills/gh-stars/scripts/fetch-stars.sh holtwood data/starred_full.json
 python3 skills/gh-stars/scripts/gen-index.py data/starred_full.json docs/index.html --title "我的收藏"
@@ -66,6 +71,15 @@ bash skills/project-hub/scripts/setup-ci.sh .
 
 # 或部署为 GitHub Pages（自动探测 Vite / Hugo / VitePress / Jekyll）
 bash skills/gh-pages/scripts/setup-pages.sh holtwood/my-agent-skills
+```
+
+## 维护 archify
+
+archify 是第三方开源 skill（[tt-a1i/archify](https://github.com/tt-a1i/archify)，MIT），官方更新频繁。跟随官方更新：
+
+```bash
+./scripts/update-archify.sh --check   # 只检查是否有新版本
+./scripts/update-archify.sh           # 下载官方 release 资产 → 校验官方清单 sha256 → 替换 skills/archify/
 ```
 
 ## 新增 Skill
