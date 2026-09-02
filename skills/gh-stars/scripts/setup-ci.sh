@@ -12,7 +12,7 @@
 set -euo pipefail
 
 TARGET="${1:-$(pwd)}"
-BRANCH="main"
+BRANCH=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --branch)
@@ -22,6 +22,18 @@ while [[ $# -gt 0 ]]; do
     *) shift ;;
   esac
 done
+
+# 未显式指定时自动探测默认分支（master 默认分支的仓库不再硬编码 main 导致每周同步推送失败）
+# 注意：命令替换必须带 || true，否则无 origin remote / 无提交时 git 非零退出会被 set -e 吞掉
+if [[ -z "${BRANCH}" && -d "${TARGET}/.git" ]] && command -v git >/dev/null 2>&1; then
+  BRANCH="$(git -C "${TARGET}" symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || true)"
+  BRANCH="${BRANCH#origin/}"
+fi
+if [[ -z "${BRANCH}" && -d "${TARGET}/.git" ]] && command -v git >/dev/null 2>&1; then
+  BRANCH="$(git -C "${TARGET}" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+fi
+[[ "${BRANCH}" == "HEAD" ]] && BRANCH=""
+BRANCH="${BRANCH:-main}"
 
 [[ -d "${TARGET}/.git" || -d "${TARGET}" ]] || { echo "✗ 目标目录不存在: ${TARGET}" >&2; exit 1; }
 

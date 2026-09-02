@@ -39,6 +39,7 @@ cmd_browser() {
       *) url="$1"; shift ;;
     esac
   done
+  [[ "${width}" =~ ^[0-9]+$ ]] || { echo "✗ --width 必须是正整数，收到: ${width}" >&2; exit 2; }
   [[ -z "${url}" ]] && { echo "用法: capture.sh browser <url> [-o out.png] [--width 1440]" >&2; exit 2; }
   out="${out:-${OUT_DIR}/browser-$(date +%H%M%S).png}"
 

@@ -29,6 +29,9 @@ jobs:
       - name: Node 语法检查
         run: node --check skills/shotframe/scripts/frame.js
 
+      - name: shotframe 逻辑单测（纯 Node，无 Chromium）
+        run: node --test "skills/shotframe/test/*.test.cjs"
+
       - name: install.sh 冒烟（临时目录，不触碰真实 HOME）
         run: |
           set -euo pipefail
@@ -65,3 +68,34 @@ jobs:
           printf '%s\n' '[{"name":"r2","description":"d","language":"Go","stargazersCount":2,"updatedAt":"2024-01-01","fork":false,"archived":false}]' > "$tmp/repos2.json"
           python3 skills/project-hub/scripts/gen-hub.py "$tmp/repos2.json" "$tmp/hub2.html" --title H --owner o
           grep -q 'href="https://github.com/o/r2"' "$tmp/hub2.html"
+
+      - name: 生成器缺字段/脏数据容错（缺 name、非数值 star 不崩溃）
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          # project-hub：缺 name 的记录应被跳过而非 KeyError 崩溃
+          printf '%s\n' '[{"name":"ok1","description":"d","language":"Go","stargazersCount":3,"updatedAt":"2024-01-01","fork":false,"archived":false},{"description":"no-name","language":"Rust","stargazersCount":1,"updatedAt":"2024-01-01","fork":false,"archived":false}]' > "$tmp/repos-noname.json"
+          python3 skills/project-hub/scripts/gen-hub.py "$tmp/repos-noname.json" "$tmp/hub-noname.html" --title H --owner o
+          grep -q 'ok1' "$tmp/hub-noname.html"
+          ! grep -q 'no-name' "$tmp/hub-noname.html"
+          # 非数值 star（外部数据常见脏值）不崩溃：gh-stars 与 project-hub 都要扛住
+          printf '%s\n' '{"starred_at":"2024-01-01T00:00:00Z","full_name":"a/b","description":"d","language":"Python","stargazers_count":"1.2k","topics":[],"fork":false}' > "$tmp/stars-str.jsonl"
+          python3 skills/gh-stars/scripts/gen-index.py "$tmp/stars-str.jsonl" "$tmp/index-str.html" --title T
+          grep -q 'class="card"' "$tmp/index-str.html"
+          printf '%s\n' '[{"name":"s1","description":"d","language":"Go","stargazersCount":"1.2k","updatedAt":"2024-01-01","fork":false,"archived":false}]' > "$tmp/repos-str.json"
+          python3 skills/project-hub/scripts/gen-hub.py "$tmp/repos-str.json" "$tmp/hub-str.html" --title H --owner o
+          grep -q 'class="card"' "$tmp/hub-str.html"
+
+      - name: archify 集成冒烟（vendored 副本可用性，不测上游逻辑）
+        run: |
+          set -euo pipefail
+          node --check skills/archify/bin/archify.mjs
+          node skills/archify/bin/archify.mjs doctor >/dev/null
+          node skills/archify/bin/archify.mjs validate architecture \
+            skills/archify/examples/checkout-platform.base.architecture.json \
+            --quality showcase --json >/dev/null
+          tmp="$(mktemp -d)"
+          node skills/archify/bin/archify.mjs deliver architecture \
+            skills/archify/examples/checkout-platform.base.architecture.json \
+            "$tmp/out.html" --quality showcase --json >/dev/null
+          test -s "$tmp/out.html"

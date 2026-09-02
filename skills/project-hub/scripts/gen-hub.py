@@ -22,6 +22,13 @@ LANG_COLORS = {
 def esc(s):
     return html.escape(str(s) if s is not None else '', quote=True)
 
+def num_stars(v):
+    # 外部/手改数据可能把 star 数写成字符串（如 "1.2k"），统一兜底为整数
+    try:
+        return int(v or 0)
+    except (TypeError, ValueError):
+        return 0
+
 def load_desc(path):
     if not path:
         return {}
@@ -36,7 +43,7 @@ def card(r, owner=''):
     lang = r.get('language') or ''
     color = LANG_COLORS.get(lang, '#94a3b8')
     desc = r.get('description') or '（无描述）'
-    stars = r.get('stargazersCount') or 0
+    stars = num_stars(r.get('stargazersCount'))
     updated = (r.get('updatedAt') or '')[:10]
     badges = ''
     if r.get('fork'):
@@ -46,7 +53,7 @@ def card(r, owner=''):
     # url 缺失/为空时回退拼接：有 owner 用 owner/name，保证链接指向正确仓库
     url = r.get('url') or (f"https://github.com/{owner}/{r.get('name', '')}".rstrip('/') if owner else f"https://github.com/{r.get('name', '')}")
     return f'''<a class="card" href="{esc(url)}" target="_blank" rel="noopener">
-  <div class="head"><span class="name">{esc(r['name'])}</span>{badges}</div>
+  <div class="head"><span class="name">{esc(r.get('name') or '')}</span>{badges}</div>
   <p class="desc">{esc(desc)}</p>
   <div class="meta">
     <span class="lang"><i style="background:{color}"></i>{esc(lang)}</span>
@@ -71,7 +78,8 @@ def main():
     if not isinstance(repos, list):
         print('✗ repos.json 必须是 JSON 数组（gh repo list 的输出格式）', file=sys.stderr)
         sys.exit(2)
-    repos = [r for r in repos if isinstance(r, dict)]
+    # 缺 name 的记录无法渲染卡片，直接跳过（与 gh-stars 的 full_name 守卫对齐）
+    repos = [r for r in repos if isinstance(r, dict) and r.get('name')]
 
     desc_zh = load_desc(args.desc_zh)
     featured_names = [n.strip() for n in args.featured.split(',') if n.strip()]
@@ -115,9 +123,9 @@ def main():
     sections = []
     if featured:
         sections.append('<h2 class="grp feat-h" data-cat="⭐ 精选">⭐ 精选 <span class="n">%d</span></h2><div class="grid" data-g="feat">%s</div>'
-                        % (len(featured), ''.join(card(r, args.owner) for r in sorted(featured, key=lambda x: x.get('stargazersCount') or 0, reverse=True))))
+                        % (len(featured), ''.join(card(r, args.owner) for r in sorted(featured, key=lambda x: num_stars(x.get('stargazersCount')), reverse=True))))
     for group in order:
-        items = sorted(grouped[group], key=lambda x: x.get('stargazersCount') or 0, reverse=True)
+        items = sorted(grouped[group], key=lambda x: num_stars(x.get('stargazersCount')), reverse=True)
         sections.append('<h2 class="grp" data-cat="%s">%s <span class="n">%d</span></h2><div class="grid">%s</div>'
                         % (esc(group), esc(group), len(items), ''.join(card(r, args.owner) for r in items)))
 

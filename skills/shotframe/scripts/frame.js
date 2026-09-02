@@ -174,7 +174,7 @@ function encodePng(width, height, channels, pixels) {
 function cropPng(decoded, box) {
   const { width: w, channels, rows, palette } = decoded;
   const { left, top, width: cw, height: ch } = box;
-  const outCh = channels === 4 ? 4 : 3; // 保留 alpha，其余统一 RGB
+  const outCh = channels === 4 || channels === 2 ? 4 : 3; // 保留 alpha（含灰度+alpha），其余统一 RGB
   const out = Buffer.alloc(cw * ch * outCh);
   for (let y = 0; y < ch; y++) {
     const srcRow = (top + y) * w * channels;
@@ -625,4 +625,16 @@ function main() {
   console.log(`✅ ${preset}${preset === 'device' ? '/' + device : ''} 框架完成: ${output} (${Math.round(outSize / 1024)} KB, ${expectedW}x${expectedH}, theme=${themeArg === 'auto' ? `auto->${theme}` : theme}, trim=${trimInfo})`);
 }
 
-main();
+// CLI 运行（require.main === module）时执行 main()；被 test/ require 时只导出内部逻辑
+if (require.main === module) {
+  main();
+}
+
+module.exports = {
+  pngSize,
+  decodePng,
+  encodePng,
+  cropPng,
+  computeTrimBox,
+  detectTheme,
+};

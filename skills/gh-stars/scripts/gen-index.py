@@ -13,6 +13,13 @@ import sys
 def esc(s):
     return html.escape(str(s) if s is not None else '', quote=True)
 
+def num_stars(v):
+    # 外部/手改数据可能把 star 数写成字符串（如 "1.2k"），统一兜底为整数
+    try:
+        return int(v or 0)
+    except (TypeError, ValueError):
+        return 0
+
 def load_desc(path):
     if not path:
         return {}
@@ -145,13 +152,13 @@ def main():
         items = grouped[cat]
         cards.append(f'<h2 class="cat" id="{esc(cat)}" data-cat="{esc(cat)}">{esc(cat)} <span class="n">{len(items)}</span></h2>')
         cards.append('<div class="grid">')
-        for r in sorted(items, key=lambda x: x.get('stargazers_count') or 0, reverse=True):
+        for r in sorted(items, key=lambda x: num_stars(x.get('stargazers_count')), reverse=True):
             name = r['full_name']
             # html_url 缺失时回退拼接（外部/手改数据源可能缺字段）
             repo_url = r.get('html_url') or f'https://github.com/{name}'
             desc = r.get('description') or '（无描述）'
             lang = r.get('language') or ''
-            stars_cnt = r.get('stargazers_count') or 0
+            stars_cnt = num_stars(r.get('stargazers_count'))
             star_date = (r.get('starred_at') or '')[:10]
             cards.append(f'''<a class="card" href="{esc(repo_url)}" target="_blank" rel="noopener">
   <div class="head">

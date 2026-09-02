@@ -148,16 +148,20 @@ esac
 OUTPUT="${OUTPUT:-${OUTPUT_DEFAULT}}"
 
 # node/vitepress 的构建命令：vitepress 官方脚手架默认只有 docs:build（没有 build）
-BUILD_CMD="npm run build"
-if [[ "${DETECTED}" == "vitepress" ]]; then
-  if has_script "build"; then
+# 仅对可构建框架赋值；静态站/jekyll 强制 workflow 时保持为空，走下方报错分支，避免生成必失败的 workflow
+BUILD_CMD=""
+case "${DETECTED}" in
+  node)
     BUILD_CMD="npm run build"
-  elif has_script "docs:build"; then
-    BUILD_CMD="npm run docs:build"
-  else
-    BUILD_CMD=""
-  fi
-fi
+    ;;
+  vitepress)
+    if has_script "build"; then
+      BUILD_CMD="npm run build"
+    elif has_script "docs:build"; then
+      BUILD_CMD="npm run docs:build"
+    fi
+    ;;
+esac
 
 WORKFLOW_PATH=".github/workflows/gh-pages.yml"
 WORKFLOW_SHA="$(gh api "repos/${REPO}/contents/${WORKFLOW_PATH}" --jq '.sha' 2>/dev/null || echo "")"
@@ -228,7 +232,8 @@ if [[ "${MODE}" == "workflow" ]] || [[ " ${WORKFLOW_FRAMEWORKS} " == *" ${MODE_N
     exit 2
   fi
   if [[ "${DETECTED}" != "hugo" && -z "${BUILD_CMD}" ]]; then
-    echo "✗ vitepress 项目既没有 build 也没有 docs:build 脚本，无法生成构建步骤" >&2
+    echo "✗ 仓库没有可用的构建脚本（探测: ${DETECTED}），无法生成构建步骤" >&2
+    echo "  请确认仓库可构建，或改用分支部署（--mode branch / --dir docs）" >&2
     exit 2
   fi
   if [[ -z "${WORKFLOW_SHA}" ]]; then
