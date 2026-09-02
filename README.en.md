@@ -1,4 +1,4 @@
-# my-agent-skills · Personal Agent Skills Collection
+# agent-skills-kit · Personal Agent Skills Collection
 
 > Installable Agent Skills: **Capture → Beautify → Publish → Showcase**, covering a developer's full "showcase" workflow.
 > Compatible with opencode / Claude Code and other mainstream AI coding tools.
@@ -29,8 +29,8 @@ Agent Skills collection with Chinese documentation and trigger semantics — rea
 ## Installation
 
 ```bash
-git clone https://github.com/holtwood/my-agent-skills.git ~/my-agent-skills
-cd ~/my-agent-skills
+git clone https://github.com/holtwood/agent-skills-kit.git ~/agent-skills-kit
+cd ~/agent-skills-kit
 
 # Install all skills locally (opencode + Claude Code)
 ./install.sh
@@ -70,7 +70,7 @@ python3 skills/project-hub/scripts/gen-hub.py data/repos.json docs/index.html --
 bash skills/project-hub/scripts/setup-ci.sh .
 
 # Or deploy as GitHub Pages (auto-detects Vite / Hugo / VitePress / Jekyll)
-bash skills/gh-pages/scripts/setup-pages.sh holtwood/my-agent-skills
+bash skills/gh-pages/scripts/setup-pages.sh holtwood/agent-skills-kit
 ```
 
 ## Maintaining archify

@@ -1,4 +1,4 @@
-# my-agent-skills · 自用 Agent Skills 集合
+# agent-skills-kit · 自用 Agent Skills 集合
 
 > 可安装的 Agent Skill 集合：**捕获 → 美化 → 发布 → 展示**，覆盖个人开发者的完整「作品展示」链路。
 > 兼容 opencode / Claude Code 等主流 AI 编程工具。
@@ -29,8 +29,8 @@
 ## 安装
 
 ```bash
-git clone https://github.com/holtwood/my-agent-skills.git ~/my-agent-skills
-cd ~/my-agent-skills
+git clone https://github.com/holtwood/agent-skills-kit.git ~/agent-skills-kit
+cd ~/agent-skills-kit
 
 # 安装全部 skill 到本机（opencode + Claude Code 双支持）
 ./install.sh
@@ -70,7 +70,7 @@ python3 skills/project-hub/scripts/gen-hub.py data/repos.json docs/index.html --
 bash skills/project-hub/scripts/setup-ci.sh .
 
 # 或部署为 GitHub Pages（自动探测 Vite / Hugo / VitePress / Jekyll）
-bash skills/gh-pages/scripts/setup-pages.sh holtwood/my-agent-skills
+bash skills/gh-pages/scripts/setup-pages.sh holtwood/agent-skills-kit
 ```
 
 ## 维护 archify
