@@ -46,7 +46,7 @@ def main():
             if isinstance(stars, dict):
                 stars = [stars]
         except json.JSONDecodeError:
-            # gh api --jq '.[]' 输出 JSONL（每行一个对象），例如 page-stars 的数据格式
+            # gh api --jq '.[]' 输出 JSONL（每行一个对象），例如 stars-db 的数据格式
             f.seek(0)
             stars = []
             for lineno, line in enumerate(f, 1):

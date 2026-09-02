@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# gh-stars — 拉取 GitHub Star 列表（参考 page-stars/fetch_stars.sh）
+# gh-stars — 拉取 GitHub Star 列表（参考 stars-db/fetch_stars.sh）
 #
 # 用法:
 #   fetch-stars.sh <owner> <out.json>

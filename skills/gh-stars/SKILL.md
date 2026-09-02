@@ -1,6 +1,6 @@
 ---
 name: "gh-stars"
-description: "把 GitHub 收藏（Star）列表生成一个可搜索、可分类的静态索引站，支持中文描述翻译与 CI 自动同步。触发场景：'把我的收藏生成一个展示站'、'做一个 stars 页面'、'帮我整理我 star 过的项目'。参考 holtwood/page-stars 的实现模式。"
+description: "把 GitHub 收藏（Star）列表生成一个可搜索、可分类的静态索引站，支持中文描述翻译与 CI 自动同步。触发场景：'把我的收藏生成一个展示站'、'做一个 stars 页面'、'帮我整理我 star 过的项目'。参考 holtwood/stars-db 的实现模式。"
 ---
 
 # GH Stars · Star 收藏索引站
@@ -11,7 +11,7 @@ description: "把 GitHub 收藏（Star）列表生成一个可搜索、可分类
 
 - 用户想把自己的 GitHub Star 列表做成一个网页展示
 - 用户想要「我收藏了什么」的可分享页面
-- 已有类似站点（如 page-stars）需要更新/重新生成
+- 已有类似站点（如 stars-db）需要更新/重新生成
 
 ## 何时不要用
 
@@ -24,7 +24,7 @@ description: "把 GitHub 收藏（Star）列表生成一个可搜索、可分类
    ```bash
    bash <skill目录>/scripts/fetch-stars.sh <owner> data/starred_full.json
    ```
-   （内部调用 `gh api --paginate user/starred`，与 page-stars 的 `fetch_stars.sh` 同源）
+   （内部调用 `gh api --paginate user/starred`，与 stars-db 的 `fetch_stars.sh` 同源）
 
 2. **生成索引站**：
    ```bash
