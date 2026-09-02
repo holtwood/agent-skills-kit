@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# project-hub — 拉取账号下全部仓库列表（参考 page-repos）
+# project-hub — 拉取账号下全部仓库列表（参考 repos-db）
 #
 # 用法:
 #   fetch-repos.sh <owner> <out.json> [--include-forks]
