@@ -12,7 +12,7 @@
 | Skill | 能力 | 场景 |
 | --- | --- | --- |
 | [`wsl-capture`](./skills/wsl-capture/) | WSL 环境截图 | 「帮我在 WSL 截个屏 / 截网页 / 截窗口」 |
-| [`shotframe`](./skills/shotframe/) | 截图套框（浏览器 / macOS / 设备框） | 「给截图加个边框」「套个 iPhone / MacBook 框」 |
+| [`shotframe`](./skills/shotframe/) | 截图套框（浏览器 / macOS / 设备框，自动适配深浅主题） | 「给截图加个边框」「套个 iPhone / MacBook 框」 |
 | [`archify`](./skills/archify/) | 架构 / 流程 / 时序 / 数据流 / 状态图（自包含 HTML + SVG，主题切换与导出） | 「画一张系统架构图」「把这个 Mermaid 转成可交互的图」 |
 | [`gh-pages`](./skills/gh-pages/) | GitHub Pages 配置（多框架探测） | 「帮我给 xxx 仓库开 GitHub Pages」 |
 | [`gh-stars`](./skills/gh-stars/) | Star 收藏索引站（中文分类 + CI 同步） | 「把我的收藏生成一个展示站」 |

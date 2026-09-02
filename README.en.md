@@ -12,7 +12,7 @@ Agent Skills collection with Chinese documentation and trigger semantics — rea
 | Skill | Capability | When to use |
 | --- | --- | --- |
 | [`wsl-capture`](./skills/wsl-capture/) | Screenshots in WSL | "take a screenshot / capture a web page / capture a window in WSL" |
-| [`shotframe`](./skills/shotframe/) | Screenshot framing (browser / macOS / device) | "add a frame to this screenshot", "wrap it in an iPhone / MacBook bezel" |
+| [`shotframe`](./skills/shotframe/) | Screenshot framing (browser / macOS / device frames, auto light/dark theming) | "add a frame to this screenshot", "wrap it in an iPhone / MacBook bezel" |
 | [`archify`](./skills/archify/) | Architecture / workflow / sequence / dataflow / lifecycle diagrams (self-contained HTML + SVG, theming & export) | "draw a system architecture diagram", "turn this Mermaid into an interactive diagram" |
 | [`gh-pages`](./skills/gh-pages/) | GitHub Pages setup (multi-framework detection) | "enable GitHub Pages for this repo" |
 | [`gh-stars`](./skills/gh-stars/) | Star collection index site (Chinese categories + CI sync) | "turn my stars into a showcase page" |
