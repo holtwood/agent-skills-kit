@@ -4,8 +4,8 @@
 #
 # 用法:
 #   ./install.sh                 # 安装全部 skill
-#   ./install.sh shotframe       # 只安装指定 skill
-#   ./install.sh shotframe gh-stars
+#   ./install.sh kit-shotframe       # 只安装指定 skill
+#   ./install.sh kit-shotframe kit-gh-stars
 #
 set -euo pipefail
 

@@ -1,11 +1,11 @@
 'use strict';
 /**
- * shotframe — frame.js 纯逻辑单元测试（node:test，纯 Node，无需 Chromium）
+ * kit-shotframe — frame.js 纯逻辑单元测试（node:test，纯 Node，无需 Chromium）
  *
  * 覆盖自研 PNG 解码/裁剪/重编码/主题检测等无头逻辑，重点是
  * `--trim` 对灰度+alpha PNG 的透明度保留（回归防护）。
  *
- * 运行: node --test skills/shotframe/test/
+ * 运行: node --test skills/kit-shotframe/test/
  */
 const test = require('node:test');
 const assert = require('node:assert');
@@ -284,7 +284,7 @@ test('parseRatio 覆盖应用商店精确比例', () => {
 test('resolveBackground 支持 image: 文件背景', () => {
   const os = require('node:os');
   const fs = require('node:fs');
-  const tmp = pathJoin(os.tmpdir(), `shotframe-test-${process.pid}.png`);
+  const tmp = pathJoin(os.tmpdir(), `kit-shotframe-test-${process.pid}.png`);
   fs.writeFileSync(tmp, buildPng(2, 2, 2, [Buffer.from([1, 2, 3, 4, 5, 6]), Buffer.from([7, 8, 9, 10, 11, 12])]));
   try {
     const r = resolveBackground(`image:${tmp}`, 'light', 135);

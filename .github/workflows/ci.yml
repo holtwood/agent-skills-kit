@@ -22,23 +22,23 @@ jobs:
 
       - name: Python 语法与入口冒烟
         run: |
-          python3 -m py_compile skills/gh-stars/scripts/gen-index.py skills/project-hub/scripts/gen-hub.py
-          python3 skills/gh-stars/scripts/gen-index.py --help >/dev/null
-          python3 skills/project-hub/scripts/gen-hub.py --help >/dev/null
+          python3 -m py_compile skills/kit-gh-stars/scripts/gen-index.py skills/kit-project-hub/scripts/gen-hub.py
+          python3 skills/kit-gh-stars/scripts/gen-index.py --help >/dev/null
+          python3 skills/kit-project-hub/scripts/gen-hub.py --help >/dev/null
 
       - name: Node 语法检查
-        run: node --check skills/shotframe/scripts/frame.js
+        run: node --check skills/kit-shotframe/scripts/frame.js
 
-      - name: shotframe 逻辑单测（纯 Node，无 Chromium）
-        run: node --test "skills/shotframe/test/*.test.cjs"
+      - name: kit-shotframe 逻辑单测（纯 Node，无 Chromium）
+        run: node --test "skills/kit-shotframe/test/*.test.cjs"
 
-      - name: shotframe 新参数契约（纯 Node，无 Chromium）
+      - name: kit-shotframe 新参数契约（纯 Node，无 Chromium）
         run: |
           set -euo pipefail
           tmp="$(mktemp -d)"
 
           # --list --json 应给出全部合法取值（agent 靠它发现能力，别让人猜）
-          node skills/shotframe/scripts/frame.js --list --json > "$tmp/list.json"
+          node skills/kit-shotframe/scripts/frame.js --list --json > "$tmp/list.json"
           node -e '
             const j = require(process.argv[1]);
             for (const k of ["aurora", "sky", "mono"]) if (!j.backgrounds.includes(k)) throw new Error("missing bg " + k);
@@ -50,7 +50,7 @@ jobs:
 
           # 非法取值必须 exit 2 + 稳定 error.code（而不是静默按默认值渲染出错误产物）
           set +e
-          out="$(node skills/shotframe/scripts/frame.js --input docs/screenshots/browser-example.png \
+          out="$(node skills/kit-shotframe/scripts/frame.js --input docs/screenshots/browser-example.png \
                   --bg nope --output "$tmp/x.png" --json 2>/dev/null)"
           code=$?
           set -e
@@ -59,7 +59,7 @@ jobs:
 
           # 数值参数写错也必须明确失败（`--padding 5O` 用字母 O 不能静默变成默认 56）
           set +e
-          node skills/shotframe/scripts/frame.js --input docs/screenshots/browser-example.png \
+          node skills/kit-shotframe/scripts/frame.js --input docs/screenshots/browser-example.png \
             --padding 5O --output "$tmp/x.png" --json > "$tmp/badnum.json" 2>/dev/null
           test "$?" -eq 2
           set -e
@@ -67,18 +67,18 @@ jobs:
 
           # 资源守卫：极端 --ratio / --padding 必须快速失败，而不是让 Chromium 卡满 60s 超时
           set +e
-          node skills/shotframe/scripts/frame.js --input docs/screenshots/browser-example.png \
+          node skills/kit-shotframe/scripts/frame.js --input docs/screenshots/browser-example.png \
             --ratio 100:1 --output "$tmp/x.png" --json > "$tmp/big.json" 2>/dev/null
           test "$?" -eq 2
           set -e
           grep -q '"config/canvas-too-large"' "$tmp/big.json"
           echo "契约检查通过"
 
-      - name: shotframe 端到端渲染冒烟（系统 Chromium 可用时）
+      - name: kit-shotframe 端到端渲染冒烟（系统 Chromium 可用时）
         run: |
           set -euo pipefail
           tmp="$(mktemp -d)"
-          frame() { node skills/shotframe/scripts/frame.js "$@"; }
+          frame() { node skills/kit-shotframe/scripts/frame.js "$@"; }
           if ! frame --input docs/screenshots/browser-example.png \
                --preset macos --output "$tmp/framed.png" 2>"$tmp/err"; then
             if grep -q "未找到 Chromium" "$tmp/err"; then echo "⚠ 未找到 Chromium，跳过渲染冒烟"; exit 0; fi
@@ -114,9 +114,9 @@ jobs:
           set -euo pipefail
           tmp="$(mktemp -d)"
           OPENCODE_SKILLS_DIR="$tmp/opencode" CLAUDE_SKILLS_DIR="$tmp/claude" \
-            ./install.sh shotframe gh-pages >/dev/null
-          test -L "$tmp/opencode/shotframe" && test -L "$tmp/claude/shotframe"
-          test -L "$tmp/opencode/gh-pages" && test -L "$tmp/claude/gh-pages"
+            ./install.sh kit-shotframe kit-gh-pages >/dev/null
+          test -L "$tmp/opencode/kit-shotframe" && test -L "$tmp/claude/kit-shotframe"
+          test -L "$tmp/opencode/kit-gh-pages" && test -L "$tmp/claude/kit-gh-pages"
           # 无参 = 安装全部；装出来的数量应与 skills/ 下的目录数一致
           tmp2="$(mktemp -d)"
           OPENCODE_SKILLS_DIR="$tmp2/opencode" CLAUDE_SKILLS_DIR="$tmp2/claude" ./install.sh >/dev/null
@@ -129,44 +129,44 @@ jobs:
           set -euo pipefail
           tmp="$(mktemp -d)"
           printf '%s\n' '[{"full_name":"a/b","description":"d","language":"Python","stargazers_count":1,"topics":["ai"],"html_url":"https://github.com/a/b"}]' > "$tmp/stars.json"
-          python3 skills/gh-stars/scripts/gen-index.py "$tmp/stars.json" "$tmp/index.html" --title T
+          python3 skills/kit-gh-stars/scripts/gen-index.py "$tmp/stars.json" "$tmp/index.html" --title T
           grep -q 'class="card"' "$tmp/index.html"
           printf '%s\n' '[{"name":"r1","description":"d","language":"Go","stargazersCount":2,"updatedAt":"2024-01-01","isFork":false,"isArchived":false,"url":"https://github.com/o/r","homepageUrl":null}]' > "$tmp/repos.json"
-          python3 skills/project-hub/scripts/gen-hub.py "$tmp/repos.json" "$tmp/hub.html" --title H --owner o
+          python3 skills/kit-project-hub/scripts/gen-hub.py "$tmp/repos.json" "$tmp/hub.html" --title H --owner o
           grep -q 'class="card"' "$tmp/hub.html"
 
       - name: 生成器缺字段容错（html_url / url 缺失时回退拼接）
         run: |
           set -euo pipefail
           tmp="$(mktemp -d)"
-          # gh-stars：缺 html_url 不崩溃，回退 https://github.com/<full_name>
+          # kit-gh-stars：缺 html_url 不崩溃，回退 https://github.com/<full_name>
           printf '%s\n' '{"starred_at":"2024-01-01T00:00:00Z","full_name":"a/b","description":"d","language":"Python","stargazers_count":1,"topics":[],"fork":false}' > "$tmp/stars2.jsonl"
-          python3 skills/gh-stars/scripts/gen-index.py "$tmp/stars2.jsonl" "$tmp/index2.html" --title T
+          python3 skills/kit-gh-stars/scripts/gen-index.py "$tmp/stars2.jsonl" "$tmp/index2.html" --title T
           grep -q 'href="https://github.com/a/b"' "$tmp/index2.html"
-          # gh-stars：JSONL 中混入坏行不崩溃，跳过即可
+          # kit-gh-stars：JSONL 中混入坏行不崩溃，跳过即可
           printf '%s\n' 'not-json' '{"starred_at":"2024-01-02T00:00:00Z","full_name":"c/d","description":"d","language":"Go","stargazers_count":2,"topics":["docker"],"fork":true,"html_url":"https://github.com/c/d"}' > "$tmp/stars3.jsonl"
-          python3 skills/gh-stars/scripts/gen-index.py "$tmp/stars3.jsonl" "$tmp/index3.html" --title T 2>/dev/null
+          python3 skills/kit-gh-stars/scripts/gen-index.py "$tmp/stars3.jsonl" "$tmp/index3.html" --title T 2>/dev/null
           grep -q 'href="https://github.com/c/d"' "$tmp/index3.html"
-          # project-hub：url 缺失时用 --owner 拼出带 owner 的正确链接
+          # kit-project-hub：url 缺失时用 --owner 拼出带 owner 的正确链接
           printf '%s\n' '[{"name":"r2","description":"d","language":"Go","stargazersCount":2,"updatedAt":"2024-01-01","fork":false,"archived":false}]' > "$tmp/repos2.json"
-          python3 skills/project-hub/scripts/gen-hub.py "$tmp/repos2.json" "$tmp/hub2.html" --title H --owner o
+          python3 skills/kit-project-hub/scripts/gen-hub.py "$tmp/repos2.json" "$tmp/hub2.html" --title H --owner o
           grep -q 'href="https://github.com/o/r2"' "$tmp/hub2.html"
 
       - name: 生成器缺字段/脏数据容错（缺 name、非数值 star 不崩溃）
         run: |
           set -euo pipefail
           tmp="$(mktemp -d)"
-          # project-hub：缺 name 的记录应被跳过而非 KeyError 崩溃
+          # kit-project-hub：缺 name 的记录应被跳过而非 KeyError 崩溃
           printf '%s\n' '[{"name":"ok1","description":"d","language":"Go","stargazersCount":3,"updatedAt":"2024-01-01","fork":false,"archived":false},{"description":"no-name","language":"Rust","stargazersCount":1,"updatedAt":"2024-01-01","fork":false,"archived":false}]' > "$tmp/repos-noname.json"
-          python3 skills/project-hub/scripts/gen-hub.py "$tmp/repos-noname.json" "$tmp/hub-noname.html" --title H --owner o
+          python3 skills/kit-project-hub/scripts/gen-hub.py "$tmp/repos-noname.json" "$tmp/hub-noname.html" --title H --owner o
           grep -q 'ok1' "$tmp/hub-noname.html"
           ! grep -q 'no-name' "$tmp/hub-noname.html"
-          # 非数值 star（外部数据常见脏值）不崩溃：gh-stars 与 project-hub 都要扛住
+          # 非数值 star（外部数据常见脏值）不崩溃：kit-gh-stars 与 kit-project-hub 都要扛住
           printf '%s\n' '{"starred_at":"2024-01-01T00:00:00Z","full_name":"a/b","description":"d","language":"Python","stargazers_count":"1.2k","topics":[],"fork":false}' > "$tmp/stars-str.jsonl"
-          python3 skills/gh-stars/scripts/gen-index.py "$tmp/stars-str.jsonl" "$tmp/index-str.html" --title T
+          python3 skills/kit-gh-stars/scripts/gen-index.py "$tmp/stars-str.jsonl" "$tmp/index-str.html" --title T
           grep -q 'class="card"' "$tmp/index-str.html"
           printf '%s\n' '[{"name":"s1","description":"d","language":"Go","stargazersCount":"1.2k","updatedAt":"2024-01-01","fork":false,"archived":false}]' > "$tmp/repos-str.json"
-          python3 skills/project-hub/scripts/gen-hub.py "$tmp/repos-str.json" "$tmp/hub-str.html" --title H --owner o
+          python3 skills/kit-project-hub/scripts/gen-hub.py "$tmp/repos-str.json" "$tmp/hub-str.html" --title H --owner o
           grep -q 'class="card"' "$tmp/hub-str.html"
 
   # 跨平台回归：Windows / macOS 上验证 Node 工具链与安装器（ubuntu 由上面的 smoke 覆盖）
@@ -186,27 +186,27 @@ jobs:
 
       - name: Node 语法检查
         shell: bash
-        run: node --check skills/shotframe/scripts/frame.js
+        run: node --check skills/kit-shotframe/scripts/frame.js
 
-      - name: shotframe 逻辑单测（纯 Node，无 Chromium）
+      - name: kit-shotframe 逻辑单测（纯 Node，无 Chromium）
         shell: bash
         # 不加引号，由 shell 展开 glob：Node 20 的 --test 自身不支持 glob 模式
-        run: node --test skills/shotframe/test/*.test.cjs
+        run: node --test skills/kit-shotframe/test/*.test.cjs
 
       # 契约检查不依赖 Chromium：配置错误必须先于环境错误报出，且 error.code 跨平台一致
-      - name: shotframe 新参数契约（无 Chromium 依赖）
+      - name: kit-shotframe 新参数契约（无 Chromium 依赖）
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p .ci-out
-          node skills/shotframe/scripts/frame.js --list --json > .ci-out/list.json
+          node skills/kit-shotframe/scripts/frame.js --list --json > .ci-out/list.json
           node -e '
             const j = require("./.ci-out/list.json");
             if (!j.backgrounds.includes("aurora")) throw new Error("missing aurora");
             if (!j.ratios.includes("og")) throw new Error("missing og");
           '
           set +e
-          out="$(node skills/shotframe/scripts/frame.js --input docs/screenshots/browser-example.png \
+          out="$(node skills/kit-shotframe/scripts/frame.js --input docs/screenshots/browser-example.png \
                   --bg nope --output .ci-out/x.png --json 2>/dev/null)"
           code=$?
           set -e
@@ -216,12 +216,12 @@ jobs:
 
       # 注意：Windows 的 Git Bash 里 mktemp 得到的是 MSYS 路径，原生 node.exe 解析结果不同，
       # 因此这里统一用仓库内相对路径，保证 bash 与 node 指向同一位置。
-      - name: shotframe 端到端渲染冒烟（系统 Chromium 可用时）
+      - name: kit-shotframe 端到端渲染冒烟（系统 Chromium 可用时）
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p .ci-out
-          if ! node skills/shotframe/scripts/frame.js --input docs/screenshots/browser-example.png \
+          if ! node skills/kit-shotframe/scripts/frame.js --input docs/screenshots/browser-example.png \
                --preset macos --output .ci-out/framed.png 2>.ci-out/render.log; then
             if grep -q "未找到 Chromium" .ci-out/render.log; then echo "⚠ 未找到 Chromium，跳过渲染冒烟"; exit 0; fi
             cat .ci-out/render.log; exit 1
@@ -241,9 +241,9 @@ jobs:
           $expected = (Get-ChildItem skills -Directory).Count
           $got = (Get-ChildItem $env:OPENCODE_SKILLS_DIR).Count
           if ($got -ne $expected) { throw "install.ps1 无参应装全部：期望 $expected，实际 $got" }
-          ./install.ps1 shotframe gh-pages
-          $ok = (Test-Path (Join-Path $env:OPENCODE_SKILLS_DIR 'shotframe\SKILL.md')) -and
-                (Test-Path (Join-Path $env:CLAUDE_SKILLS_DIR 'gh-pages\SKILL.md'))
+          ./install.ps1 kit-shotframe kit-gh-pages
+          $ok = (Test-Path (Join-Path $env:OPENCODE_SKILLS_DIR 'kit-shotframe\SKILL.md')) -and
+                (Test-Path (Join-Path $env:CLAUDE_SKILLS_DIR 'kit-gh-pages\SKILL.md'))
           if (-not $ok) { throw 'install.ps1 未正确创建目录联接' }
           ./install.ps1  # 幂等复跑应全部跳过
 
@@ -256,8 +256,8 @@ jobs:
           BASH="$(brew --prefix)/bin/bash"
           tmp="$(mktemp -d)"
           OPENCODE_SKILLS_DIR="$tmp/opencode" CLAUDE_SKILLS_DIR="$tmp/claude" \
-            "$BASH" ./install.sh shotframe gh-pages
-          test -L "$tmp/opencode/shotframe" && test -L "$tmp/claude/gh-pages"
+            "$BASH" ./install.sh kit-shotframe kit-gh-pages
+          test -L "$tmp/opencode/kit-shotframe" && test -L "$tmp/claude/kit-gh-pages"
           # 无参 = 安装全部
           tmp2="$(mktemp -d)"
           OPENCODE_SKILLS_DIR="$tmp2/opencode" CLAUDE_SKILLS_DIR="$tmp2/claude" "$BASH" ./install.sh >/dev/null

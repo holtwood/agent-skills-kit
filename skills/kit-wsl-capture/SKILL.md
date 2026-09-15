@@ -1,5 +1,5 @@
 ---
-name: "wsl-capture"
+name: "kit-wsl-capture"
 description: "从 WSL 环境截取屏幕、窗口或浏览器页面。多后端自动降级：Windows 桌面走 PowerShell interop，浏览器走 Chromium 无头，WSLg 走剪贴板。另含可选的剧本化截图模式（点按钮/等元素/截指定元素）。解决 WSL 开发者常见的「截不到 Windows 桌面 / 粘贴坏图」问题。"
 ---
 
@@ -18,7 +18,7 @@ description: "从 WSL 环境截取屏幕、窗口或浏览器页面。多后端�
 - 用户在 WSL 里想要「当前屏幕 / 某个窗口 / 某个网页」的截图
 - 用户提到 WSL 里截图黑屏、粘贴坏图、截不到 Windows 桌面
 - 用户要截「登录后的页面 / 点了某个按钮的状态 / 某个组件」这类需要先交互的画面
-- 截图给 AI 分析、写进文档、或准备交给 `shotframe` 套框
+- 截图给 AI 分析、写进文档、或准备交给 `kit-shotframe` 套框
 
 ## 何时不要用
 
@@ -54,9 +54,9 @@ bash <skill目录>/scripts/capture.sh <mode> [参数...]
 
 1. 系统 Chromium 无头直接截图（`--headless=new --screenshot`）
 2. Playwright 缓存中的 Chromium
-3. **自举下载**：以上都没有时，自动下载 `chrome-headless-shell` 到 `~/.cache/wsl-capture/`（约 100MB，仅首次；需 curl/wget + unzip/python3）
+3. **自举下载**：以上都没有时，自动下载 `chrome-headless-shell` 到 `~/.cache/kit-wsl-capture/`（约 100MB，仅首次；需 curl/wget + unzip/python3）
 
-**interact 额外依赖**：首次使用 `npm install puppeteer-core@^24` 到 `~/.cache/wsl-capture/runtime`（几 MB，不含浏览器本体，不进项目依赖；需要 node + npm + 网络）。
+**interact 额外依赖**：首次使用 `npm install puppeteer-core@^24` 到 `~/.cache/kit-wsl-capture/runtime`（几 MB，不含浏览器本体，不进项目依赖；需要 node + npm + 网络）。
 
 **clip 模式**：
 
@@ -68,7 +68,7 @@ bash <skill目录>/scripts/capture.sh <mode> [参数...]
 1. 判断用户要截什么：网页 → `browser`；需要先点/等/截元素 → `interact`；整个桌面 → `screen`；某个应用窗口 → `window`；「我刚截的图」→ `clip`
 2. 执行对应命令，输出到用户指定的路径（默认 `~/Pictures/shotkit/`）
 3. 验证输出文件存在且非空
-4. 如需美化，引导用户交给 `shotframe` 套框
+4. 如需美化，引导用户交给 `kit-shotframe` 套框
 
 ## 示例
 
@@ -100,20 +100,20 @@ bash scripts/capture.sh clip -o ~/shots/clip.png
 
 - iOS：`xcrun simctl status_bar booted override --time 9:41 --batteryLevel 100 --batteryState charged`——苹果惯例 9:41 + 满电
 - Android：`adb shell am broadcast -a com.android.systemui.demo -e command enter` 进 demo mode 后统一状态栏
-- 捕获后交给 `shotframe`：`--device galaxy`/`iphone` + `--ratio appstore-69`/`play-phone` + `--headline` 直接出商店图
+- 捕获后交给 `kit-shotframe`：`--device galaxy`/`iphone` + `--ratio appstore-69`/`play-phone` + `--headline` 直接出商店图
 
 ## 实现说明
 
 - 纯 Bash + 系统工具，**零安装**；`interact` 是唯一例外（可选增强）：首次使用时往缓存目录装 `puppeteer-core`，复用同一套 Chromium 探测/自举缓存
 - Windows 侧操作全部通过 `powershell.exe` interop，不依赖 WSLg 的剪贴板同步（避免 BMP `BI_BITFIELDS` 坏图）
-- 输出统一为 PNG，可直接喂给 `shotframe`
+- 输出统一为 PNG，可直接喂给 `kit-shotframe`
 
 ## 常见问题
 
 - **screen 截出来是黑屏**：多半在纯 Wayland 下没有走 Windows 路径；确认 `powershell.exe` 可用（`which powershell.exe`）
 - **剪贴板是 BMP 读不了**：本 skill 的 `clip` 模式会自动用 WSLg 数据转换，或提示用户用 Windows 侧工具重截
-- **找不到 Chromium**：browser / interact 模式会自动下载 `chrome-headless-shell` 到 `~/.cache/wsl-capture/` 兜底（仅 Linux/WSL；`shotframe` 也会复用这个缓存）。不想下载就 `sudo apt install chromium`，或设置 `SHOTFRAME_CHROMIUM`
-- **`interact` 报 puppeteer-core 缺失/装不上**：需要 node + npm + 网络；手动装 `npm --prefix ~/.cache/wsl-capture/runtime install puppeteer-core` 再重试
+- **找不到 Chromium**：browser / interact 模式会自动下载 `chrome-headless-shell` 到 `~/.cache/kit-wsl-capture/` 兜底（仅 Linux/WSL；`kit-shotframe` 也会复用这个缓存）。不想下载就 `sudo apt install chromium`，或设置 `KIT_SHOTFRAME_CHROMIUM`
+- **`interact` 报 puppeteer-core 缺失/装不上**：需要 node + npm + 网络；手动装 `npm --prefix ~/.cache/kit-wsl-capture/runtime install puppeteer-core` 再重试
 - **`interact` 动作没生效**：`--click`/`--waitfor` 的选择器未命中会以非零退出码失败并写明是哪个选择器；先在浏览器 DevTools 里验证选择器，或加 `--wait` 给页面留加载时间
 
 ## Agent 兼容说明

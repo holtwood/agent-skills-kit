@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * shotframe — 截图套框渲染器（零 npm 依赖）
+ * kit-shotframe — 截图套框渲染器（零 npm 依赖）
  *
  * 用法:
  *   node frame.js --input <png> --preset <browser|macos|device> --output <png> \
@@ -321,10 +321,10 @@ function chromiumCommandNames() {
 function findChromium(forced) {
   if (forced && typeof forced === 'string' && fs.existsSync(forced)) return forced;
   const candidates = [
-    process.env.SHOTFRAME_CHROMIUM,
+    process.env.KIT_SHOTFRAME_CHROMIUM,
     process.env.CHROME_PATH,
     ...globPlaywrightChromium(),
-    ...wslCaptureChromium(),
+    ...kitWslCaptureChromium(),
     ...platformChromiumPaths(),
   ];
   for (const c of candidates) {
@@ -393,12 +393,12 @@ function globPlaywrightChromium() {
   return out;
 }
 
-// wsl-capture 自举下载的 chrome-headless-shell 缓存（两个 skill 共用，仅 Linux/WSL 会存在）
-function wslCaptureChromium() {
+// kit-wsl-capture 自举下载的 chrome-headless-shell 缓存（两个 skill 共用，仅 Linux/WSL 会存在）
+function kitWslCaptureChromium() {
   if (IS_WIN || IS_MAC) return [];
   const xdg = process.env.XDG_CACHE_HOME;
   const base = xdg && path.isAbsolute(xdg) ? xdg : path.join(os.homedir(), '.cache');
-  const p = path.join(base, 'wsl-capture', 'chrome-headless-shell', 'chrome-headless-shell-linux64', 'chrome-headless-shell');
+  const p = path.join(base, 'kit-wsl-capture', 'chrome-headless-shell', 'chrome-headless-shell-linux64', 'chrome-headless-shell');
   return fs.existsSync(p) ? [p] : [];
 }
 
@@ -831,13 +831,13 @@ const MAX_OUTPUT_PIXELS = 120e6;      // 输出像素总量上限（≈120MP）
 // format=pdf 时改走 printToPDF：输出为矢量（@page 已按画布尺寸写入 HTML），
 // 像素校验不适用，改为校验 %PDF 文件头。
 function renderFrame({ chromium, html, output, cssW, cssH, scale, transparent, format }) {
-  const tmpHtml = path.join(os.tmpdir(), `shotframe-${process.pid}-${crypto.randomBytes(6).toString('hex')}.html`);
+  const tmpHtml = path.join(os.tmpdir(), `kit-shotframe-${process.pid}-${crypto.randomBytes(6).toString('hex')}.html`);
   fs.writeFileSync(tmpHtml, html, { flag: 'wx', mode: 0o600 });
   fs.mkdirSync(path.dirname(path.resolve(output)), { recursive: true });
 
   const expectedW = Math.round(cssW * scale);
   const expectedH = Math.round(cssH * scale);
-  // chrome-headless-shell（wsl-capture 自举下载的无头壳）本身就是无头实现，
+  // chrome-headless-shell（kit-wsl-capture 自举下载的无头壳）本身就是无头实现，
   // 只认旧版 headless 开关，传 --headless=new 反而不兼容
   const isHeadlessShell = /headless-shell/i.test(path.basename(chromium));
 
@@ -1055,7 +1055,7 @@ function main() {
 
   const chromium = findChromium(args.chromium);
   if (!chromium) {
-    fail(1, 'environment/chromium-missing', '未找到 Chromium。请安装 chromium 或设置 SHOTFRAME_CHROMIUM 环境变量指向浏览器可执行文件。', [
+    fail(1, 'environment/chromium-missing', '未找到 Chromium。请安装 chromium 或设置 KIT_SHOTFRAME_CHROMIUM 环境变量指向浏览器可执行文件。', [
       '安装系统 Chromium（apt install chromium / brew install --cask chromium）',
       '或显式指定 --chromium /path/to/chrome',
     ]);

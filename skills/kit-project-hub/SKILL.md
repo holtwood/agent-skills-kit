@@ -1,5 +1,5 @@
 ---
-name: "project-hub"
+name: "kit-project-hub"
 description: "把 GitHub 账号下的全部仓库生成一个导航首页：卡片网格展示名称/描述/语言/Star/更新时间，可分组、可搜索，一键部署 Pages。触发场景：'做一个列出我所有仓库的导航站'、'生成我的项目主页'。参考 holtwood/repos-db 的实现模式。"
 ---
 
@@ -34,13 +34,13 @@ description: "把 GitHub 账号下的全部仓库生成一个导航首页：卡�
    ```
    输出自包含 HTML（内联 CSS/JS）：卡片网格（名称、描述、语言色标、Star、更新时间）+ 搜索 + 分组筛选 + 可选精选区。
 
-4. **部署**：把 `docs/` 部署为 GitHub Pages（交给 `gh-pages` skill）。
+4. **部署**：把 `docs/` 部署为 GitHub Pages（交给 `kit-gh-pages` skill）。
 
 5. **（可选）CI 每周自动审计**：写入定时 workflow（每周拉取重新生成，有变更自动提交推送，提交历史即审计留痕）：
    ```bash
    bash <skill目录>/scripts/setup-ci.sh <项目目录> [--branch main]
    ```
-   它会：把 skill 脚本复制到 `<项目>/skills/project-hub/`，并写入 `.github/workflows/audit-weekly.yml`（每周一 02:00 UTC 运行，支持手动触发）。
+   它会：把 skill 脚本复制到 `<项目>/skills/kit-project-hub/`，并写入 `.github/workflows/audit-weekly.yml`（每周一 02:00 UTC 运行，支持手动触发）。
 
 ## 命令契约
 
@@ -63,7 +63,7 @@ python3 scripts/gen-hub.py data/repos.json docs/index.html --title "holtwood 的
   --featured my-app,page-home
 # 配置每周审计
 bash scripts/setup-ci.sh .
-# 交给 gh-pages 部署 docs/
+# 交给 kit-gh-pages 部署 docs/
 ```
 
 ## 数据与产物
@@ -77,7 +77,7 @@ bash scripts/setup-ci.sh .
 - 精选区通过 `--featured` 指定；分组筛选按钮 + 搜索框均为页面内 JS，单文件可离线打开
 - 语言色标内置常见语言映射（JS/TS/Python/Go/Rust/Shell 等）
 - `setup-ci.sh` 生成的审计 workflow 用 `GITHUB_TOKEN` 拉取仓库列表并自动提交；如启用分支保护需自行调整推送方式；仓库在组织名下或要展示他人仓库时，在仓库 Variables 设置 `HUB_OWNER`
-- 与 `gh-stars` 的区别：本 skill 管「我**自己**的仓库」，`gh-stars` 管「我收藏的**别人**的仓库」
+- 与 `kit-gh-stars` 的区别：本 skill 管「我**自己**的仓库」，`kit-gh-stars` 管「我收藏的**别人**的仓库」
 
 ## 常见问题
 

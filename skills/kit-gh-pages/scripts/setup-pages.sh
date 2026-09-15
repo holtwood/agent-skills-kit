@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# gh-pages — 为仓库配置 GitHub Pages（自动探测构建工具）
+# kit-gh-pages — 为仓库配置 GitHub Pages（自动探测构建工具）
 #
 # 用法:
 #   setup-pages.sh <owner/repo> [--mode auto|workflow|branch] [--dir docs] [--branch main] [--output dist]

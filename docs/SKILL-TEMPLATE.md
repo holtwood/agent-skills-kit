@@ -10,7 +10,7 @@ skills/<kebab-case 英文名>/
 └── scripts/          # 实现脚本（可多个）
 ```
 
-- 命名：小写 kebab-case（如 `wsl-capture`、`gh-pages`），语义即能力
+- 命名：小写 kebab-case，统一 `kit-` 前缀（如 `kit-wsl-capture`、`kit-gh-pages`），语义即能力
 - 每个 skill **完全自治**：不依赖兄弟目录、不依赖仓库其他文件，复制目录即可独立使用
 
 ## SKILL.md 必须包含
@@ -43,7 +43,7 @@ skills/<kebab-case 英文名>/
 
 ## 脚本规范
 
-- 每个脚本：`set -euo pipefail`（bash）。若脚本内部需要多后端降级/软失败逻辑，可用 `set -uo pipefail` 并显式处理各分支退出码（参考 `wsl-capture/scripts/capture.sh`）
+- 每个脚本：`set -euo pipefail`（bash）。若脚本内部需要多后端降级/软失败逻辑，可用 `set -uo pipefail` 并显式处理各分支退出码（参考 `kit-wsl-capture/scripts/capture.sh`）
 - Python 脚本统一 `def main()` 入口结构
 - 顶部注释写清用法
 - 输出路径统一用参数传入，默认写入当前目录或 `~/Pictures`、`docs/` 等约定位置

@@ -17,7 +17,7 @@
 
 - 链接：[LeeHueeng/store-screenshots](https://github.com/LeeHueeng/store-screenshots)
 - 用途：App Store / Google Play 商店截图生成——纯 CSS 设备框（iPhone/iPad/Galaxy/Fold/Flip）、底部出血+微倾构图、状态栏统一（9:41 满电）、品牌色提取、确认门工作流
-- 备注：shotframe 的 Android 机型框、商店比例、bleed/tilt/copy 层就是参考它做的；Claude Code + Codex 双兼容写法值得抄
+- 备注：kit-shotframe 的 Android 机型框、商店比例、bleed/tilt/copy 层就是参考它做的；Claude Code + Codex 双兼容写法值得抄
 
 ### app-store-screenshots-skill（framara）
 
@@ -28,20 +28,20 @@
 ### selene · app-mockup-kit
 
 - 链接：[tercumantanumut/selene](https://github.com/tercumantanumut/selene)
-- 用途：与 shotframe 同路线的确定性套壳渲染器（Chrome/Safari 浏览器框、iPhone/Pixel/iPad/MacBook），默认输出 SVG
-- 备注：shotframe 的 Safari 框、PDF 输出参考了它
+- 用途：与 kit-shotframe 同路线的确定性套壳渲染器（Chrome/Safari 浏览器框、iPhone/Pixel/iPad/MacBook），默认输出 SVG
+- 备注：kit-shotframe 的 Safari 框、PDF 输出参考了它
 
 ### guizang-social-card-skill
 
 - 链接：[op7418/guizang-social-card-skill](https://github.com/op7418/guizang-social-card-skill)
 - 用途：中文社媒卡片 + 独立的 `references/screenshot-treatment.md` 截图处理规范（contain 不裁切、六维度组合舞台、WebP 纹理背景）
-- 备注：shotframe 的 `image:` 纹理背景思路来源
+- 备注：kit-shotframe 的 `image:` 纹理背景思路来源
 
 ### web-screenshot（WholeNightCoding）
 
 - 链接：[WholeNightCoding/web-screenshot](https://github.com/WholeNightCoding/web-screenshot)
 - 用途：自举式网页截图——首跑自动装 puppeteer-core + chrome-headless-shell 到 `~/.cache`，剧本化捕获（元素截图/点击后再截）
-- 备注：wsl-capture 的自举下载与 interact 模式参考了它
+- 备注：kit-wsl-capture 的自举下载与 interact 模式参考了它
 
 <!-- 继续往下加：复制上面的小节，改链接 / 用途 / 许可 / 备注即可 -->
 

@@ -9,8 +9,8 @@
 
 .EXAMPLE
   ./install.ps1                 # 安装全部 skill
-  ./install.ps1 shotframe       # 只安装指定 skill
-  ./install.ps1 shotframe gh-stars
+  ./install.ps1 kit-shotframe       # 只安装指定 skill
+  ./install.ps1 kit-shotframe kit-gh-stars
 #>
 [CmdletBinding()]
 param(

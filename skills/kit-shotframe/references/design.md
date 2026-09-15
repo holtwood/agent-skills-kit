@@ -1,4 +1,4 @@
-# shotframe · 设计参考（预设 / 背景 / 画布 / 实现说明）
+# kit-shotframe · 设计参考（预设 / 背景 / 画布 / 实现说明）
 
 主契约见 `../SKILL.md`。本文件是按需细读部分：选 preset 时看「预设说明」，调背景/画布看「背景与画布」，做商店图看「商店图构图」，好奇实现边界看「实现说明」。
 
@@ -51,6 +51,6 @@ node scripts/frame.js --input shot.png --preset device --device galaxy \
 - **尺寸校验**：PNG 输出应为逻辑尺寸 × 设备像素比；不符时按差值校正窗口尺寸自动重试一次（容差 ±1px，兼容小数像素比），仍不符以退出码 3 失败（防御无头窗口被显示环境钳制）。PDF 输出改为校验 `%PDF-` 文件头
 - **机读契约**：`--json` 在 stdout 输出回执（成功 `ok:true` + `canvas`/`outputs`；失败 `ok:false` + `exitCode` + `error.code` 稳定 slug），人类日志走 stdout 之外的通道，便于 agent 直接解析
 - 设备框为纯 CSS 绘制（机身 / 灵动岛 / 刘海 / 按键 / logo 均为样式实现），截图按设备屏幕宽度等比缩放填充，不拉伸变形
-- Chromium 自动探测顺序：`SHOTFRAME_CHROMIUM` 环境变量 → Playwright 缓存目录 → `wsl-capture` 自举下载的 chrome-headless-shell 缓存（`~/.cache/wsl-capture/`）→ `which chromium / google-chrome / chrome`；识别到 chrome-headless-shell 时自动改用旧版 headless 开关
+- Chromium 自动探测顺序：`KIT_SHOTFRAME_CHROMIUM` 环境变量 → Playwright 缓存目录 → `kit-wsl-capture` 自举下载的 chrome-headless-shell 缓存（`~/.cache/kit-wsl-capture/`）→ `which chromium / google-chrome / chrome`；识别到 chrome-headless-shell 时自动改用旧版 headless 开关
 - 输入格式：PNG（自动读取宽高，无需额外库）
 - 默认输出 2 倍尺寸（等价 Retina）；需要落到平台推荐宽度时用 `--width`（只缩小），README 里也可再 `width=` 限制显示

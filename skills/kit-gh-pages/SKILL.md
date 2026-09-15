@@ -1,5 +1,5 @@
 ---
-name: "gh-pages"
+name: "kit-gh-pages"
 description: "为 GitHub 仓库配置 GitHub Pages：自动探测仓库构建工具，生成部署 workflow 或用 gh CLI 设置源分支，最后报告 Pages 地址。触发场景：'帮我的 xxx 仓库开 GitHub Pages'、'把这个项目发布成网页'、'我的仓库怎么开 Pages'。"
 ---
 

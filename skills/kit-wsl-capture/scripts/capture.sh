@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# wsl-capture — WSL 环境截图（多后端自动降级）
+# kit-wsl-capture — WSL 环境截图（多后端自动降级）
 #
 # 用法:
 #   capture.sh browser  <url> [-o out.png] [--width 1440]
@@ -17,10 +17,10 @@ OUT_DIR="${HOME}/Pictures/shotkit"
 mkdir -p "${OUT_DIR}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# ---------- Chromium 探测（与 shotframe 一致） ----------
+# ---------- Chromium 探测（与 kit-shotframe 一致） ----------
 find_chromium() {
-  if [[ -n "${SHOTFRAME_CHROMIUM:-}" && -x "${SHOTFRAME_CHROMIUM}" ]]; then
-    echo "${SHOTFRAME_CHROMIUM}"; return
+  if [[ -n "${KIT_SHOTFRAME_CHROMIUM:-}" && -x "${KIT_SHOTFRAME_CHROMIUM}" ]]; then
+    echo "${KIT_SHOTFRAME_CHROMIUM}"; return
   fi
   for c in \
     "${HOME}/.cache/ms-playwright"/chromium-*/chrome-linux64/chrome \
@@ -34,8 +34,8 @@ find_chromium() {
 
 # ---------- Chromium 自举：找不到时下载 chrome-headless-shell ----------
 # 参考 WholeNightCoding/web-screenshot 的思路：无头壳约 100MB，缓存到
-# ~/.cache/wsl-capture/，仅首次需要；shotframe 的探测逻辑也会复用这个缓存
-CHS_HOME="${XDG_CACHE_HOME:-${HOME}/.cache}/wsl-capture/chrome-headless-shell"
+# ~/.cache/kit-wsl-capture/，仅首次需要；kit-shotframe 的探测逻辑也会复用这个缓存
+CHS_HOME="${XDG_CACHE_HOME:-${HOME}/.cache}/kit-wsl-capture/chrome-headless-shell"
 CHS_BIN="${CHS_HOME}/chrome-headless-shell-linux64/chrome-headless-shell"
 # last-known-good-versions.json 取不到时的回退版本（真实存在过的 Stable）
 CHS_FALLBACK_VER="140.0.7339.80"
@@ -54,7 +54,7 @@ fetch_to() {
 ensure_headless_shell() {
   [[ -x "${CHS_BIN}" ]] && { echo "${CHS_BIN}"; return 0; }
   # 自举包只有 linux64 构建可用——macOS/Git-Bash 上下载也跑不了，直接拒绝
-  [[ "$(uname -s)" == "Linux" ]] || { echo "✗ 自举下载仅支持 Linux/WSL；请安装本机 Chromium 或设置 SHOTFRAME_CHROMIUM" >&2; return 1; }
+  [[ "$(uname -s)" == "Linux" ]] || { echo "✗ 自举下载仅支持 Linux/WSL；请安装本机 Chromium 或设置 KIT_SHOTFRAME_CHROMIUM" >&2; return 1; }
   command -v curl >/dev/null 2>&1 || command -v wget >/dev/null 2>&1 || return 1
 
   echo "⚙ 未找到 Chromium，正在下载 chrome-headless-shell 到 ${CHS_HOME}（约 100MB，仅首次）..." >&2
@@ -104,7 +104,7 @@ cmd_browser() {
     chromium="$(ensure_headless_shell)" || true
   fi
   if [[ -z "${chromium}" ]]; then
-    echo "✗ 未找到 Chromium 且自举下载失败。请安装（sudo apt install chromium）或设置 SHOTFRAME_CHROMIUM" >&2
+    echo "✗ 未找到 Chromium 且自举下载失败。请安装（sudo apt install chromium）或设置 KIT_SHOTFRAME_CHROMIUM" >&2
     return 1
   fi
 
@@ -131,14 +131,14 @@ cmd_browser() {
 # browser 模式只能"打开即截"。interact 用 puppeteer-core 驱动同一 Chromium：
 # 点选择器、等元素、滚动后再截，也可以只截某个元素或整页。
 # 代价：首次使用要 npm install puppeteer-core 到缓存目录（非项目依赖）。
-RT_HOME="${XDG_CACHE_HOME:-${HOME}/.cache}/wsl-capture/runtime"
+RT_HOME="${XDG_CACHE_HOME:-${HOME}/.cache}/kit-wsl-capture/runtime"
 
 ensure_runtime() {
   [[ -d "${RT_HOME}/node_modules/puppeteer-core" ]] && return 0
   command -v node >/dev/null 2>&1 || { echo "✗ interact 模式需要 Node.js" >&2; return 1; }
   command -v npm >/dev/null 2>&1 || { echo "✗ interact 模式需要 npm" >&2; return 1; }
   mkdir -p "${RT_HOME}"
-  [[ -f "${RT_HOME}/package.json" ]] || printf '{"name":"wsl-capture-runtime","private":true}\n' > "${RT_HOME}/package.json"
+  [[ -f "${RT_HOME}/package.json" ]] || printf '{"name":"kit-wsl-capture-runtime","private":true}\n' > "${RT_HOME}/package.json"
   echo "⚙ 安装 puppeteer-core 到 ${RT_HOME}（仅首次，约几 MB，不含浏览器本体）..." >&2
   npm --prefix "${RT_HOME}" install 'puppeteer-core@^24' --no-fund --no-audit --loglevel=error >&2 || return 1
   [[ -d "${RT_HOME}/node_modules/puppeteer-core" ]]
@@ -177,7 +177,7 @@ cmd_interact() {
     chromium="$(ensure_headless_shell)" || true
   fi
   if [[ -z "${chromium}" ]]; then
-    echo "✗ 未找到 Chromium 且自举下载失败。请安装（sudo apt install chromium）或设置 SHOTFRAME_CHROMIUM" >&2
+    echo "✗ 未找到 Chromium 且自举下载失败。请安装（sudo apt install chromium）或设置 KIT_SHOTFRAME_CHROMIUM" >&2
     return 1
   fi
   ensure_runtime || { echo "✗ 剧本运行时安装失败（需要网络 + npm）" >&2; return 1; }
@@ -342,7 +342,7 @@ cmd_clip() {
         return 0
       fi
       echo "✗ 剪贴板是 BMP 且无法转换为 PNG（需要 ImageMagick 的 convert）" >&2
-      echo "  原始 BMP 保留在: ${out}.bmp（shotframe 只接受 PNG，请勿直接使用）" >&2
+      echo "  原始 BMP 保留在: ${out}.bmp（kit-shotframe 只接受 PNG，请勿直接使用）" >&2
       return 1
     fi
   fi

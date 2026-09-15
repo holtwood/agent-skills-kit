@@ -1,4 +1,4 @@
-# shotframe · 排错参考（常见问题）
+# kit-shotframe · 排错参考（常见问题）
 
 渲染失败或结果不对时按 `error.code` / 退出码对号入座。主契约见 `../SKILL.md`。
 

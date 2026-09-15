@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-// wsl-capture interact — 剧本化网页截图（可选增强，非默认路径）
+// kit-wsl-capture interact — 剧本化网页截图（可选增强，非默认路径）
 //
 // 由 capture.sh 调用：puppeteer-core 在首次使用时自动安装到
-// ~/.cache/wsl-capture/runtime（NODE_PATH 指向其 node_modules），
+// ~/.cache/kit-wsl-capture/runtime（NODE_PATH 指向其 node_modules），
 // 不污染项目依赖。浏览器复用与 browser 模式相同的探测/自举缓存。
 //
 // 用法（全部由 capture.sh 组装）:
@@ -11,13 +11,13 @@
 //     [--act 'click:选择器'] [--act 'wait:毫秒'] [--act 'waitfor:选择器'] [--act 'scroll:像素']
 'use strict';
 
-// CJS + NODE_PATH：capture.sh 以 NODE_PATH=~/.cache/wsl-capture/runtime/node_modules 调用，
+// CJS + NODE_PATH：capture.sh 以 NODE_PATH=~/.cache/kit-wsl-capture/runtime/node_modules 调用，
 // require 直接解析到缓存目录里按需安装的 puppeteer-core
 let puppeteer;
 try {
   puppeteer = require('puppeteer-core');
 } catch (e) {
-  console.error('✗ 缺少 puppeteer-core（应由 capture.sh 安装到 ~/.cache/wsl-capture/runtime）');
+  console.error('✗ 缺少 puppeteer-core（应由 capture.sh 安装到 ~/.cache/kit-wsl-capture/runtime）');
   process.exit(2);
 }
 

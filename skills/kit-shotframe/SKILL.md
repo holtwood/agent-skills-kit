@@ -1,5 +1,5 @@
 ---
-name: "shotframe"
+name: "kit-shotframe"
 description: "给真实截图套上浏览器边框（Chrome / Safari）、macOS 窗口框或设备框（iPhone / iPad / MacBook / Galaxy / Galaxy Flip / Galaxy Fold），可配渐变/图片背景、社媒与应用商店画布比例（OG / X / App Store / Google Play）、顶部文案层、底边出血与微倾构图、阴影档位、边缘色衬边，输出 PNG 或矢量 PDF。自动适配深色/浅色主题，零依赖（只需系统 Chromium），确定性渲染（不使用任何图像生成模型）。适用于 README 配图、产品文档、应用商店截图、博客头图、社交分享图。触发场景：'给这张截图加个手机框'、'做成 iPhone 截图效果'、'给截图加个浏览器边框'、'给截图配个渐变背景'、'做成 OG 图 / 分享图'、'做一组 App Store 商店图'。"
 ---
 
@@ -70,7 +70,7 @@ node <skill目录>/scripts/frame.js \
 
 ## 工作流
 
-1. **确认输入是真实截图文件**（本地路径）。如果是 URL 或「正在运行的应用」，先交给 `wsl-capture` 或浏览器工具截图，拿到文件后再调用本 skill。
+1. **确认输入是真实截图文件**（本地路径）。如果是 URL 或「正在运行的应用」，先交给 `kit-wsl-capture` 或浏览器工具截图，拿到文件后再调用本 skill。
    - 输入应为**应用视口内容**：先裁掉桌面壁纸、原生浏览器边框等无关区域
    - 截图四周若有纯色空白边，加 `--trim` 自动裁除
 2. **选 preset**：

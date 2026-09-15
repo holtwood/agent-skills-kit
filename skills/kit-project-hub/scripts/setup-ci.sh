@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 #
-# project-hub — 写入「每周仓库审计」GitHub Actions workflow
+# kit-project-hub — 写入「每周仓库审计」GitHub Actions workflow
 #
 # 用法:
 #   setup-ci.sh [目标仓库目录] [--branch main]
 #
 # 作用:
-#   1. 把本 skill 的 scripts/ 复制到 <目标仓库>/skills/project-hub/（保证 skill 自治、可被 workflow 调用）
+#   1. 把本 skill 的 scripts/ 复制到 <目标仓库>/skills/kit-project-hub/（保证 skill 自治、可被 workflow 调用）
 #   2. 写入 .github/workflows/audit-weekly.yml：每周拉取仓库列表 → 重新生成导航页 → 有变更则自动提交推送
 #      （提交历史即审计留痕：git log 可追溯每周仓库变化）
 #
@@ -39,14 +39,14 @@ BRANCH="${BRANCH:-main}"
 [[ -d "${TARGET}" ]] || { echo "✗ 目标目录不存在: ${TARGET}" >&2; exit 1; }
 
 SKILL_SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-DEST="${TARGET}/skills/project-hub"
+DEST="${TARGET}/skills/kit-project-hub"
 mkdir -p "${DEST}/scripts"
 # 排除 __pycache__，仅复制脚本
 tar cf - --exclude='__pycache__' -C "${SKILL_SRC}" scripts | tar xf - -C "${DEST}"
 mkdir -p "${TARGET}/.github/workflows" "${TARGET}/data" "${TARGET}/docs"
 
 cat > "${TARGET}/.github/workflows/audit-weekly.yml" <<EOF
-name: Audit project-hub
+name: Audit kit-project-hub
 on:
   schedule:
     - cron: "0 2 * * 1"   # 每周一 02:00 UTC
@@ -65,8 +65,8 @@ jobs:
           OWNER: \${{ vars.HUB_OWNER || github.repository_owner }}
         run: |
           set -euo pipefail
-          bash skills/project-hub/scripts/fetch-repos.sh "\${OWNER}" data/repos.json
-          python3 skills/project-hub/scripts/gen-hub.py data/repos.json docs/index.html --owner "\${OWNER}"
+          bash skills/kit-project-hub/scripts/fetch-repos.sh "\${OWNER}" data/repos.json
+          python3 skills/kit-project-hub/scripts/gen-hub.py data/repos.json docs/index.html --owner "\${OWNER}"
       - name: 有更新则提交推送（审计留痕）
         run: |
           git config user.name "github-actions[bot]"
