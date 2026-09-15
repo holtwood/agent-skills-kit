@@ -3,15 +3,19 @@
 # wsl-capture — WSL 环境截图（多后端自动降级）
 #
 # 用法:
-#   capture.sh browser <url> [-o out.png] [--width 1440]
-#   capture.sh screen  [-o out.png]
-#   capture.sh window  <标题或进程名> [-o out.png]
-#   capture.sh clip    [-o out.png]
+#   capture.sh browser  <url> [-o out.png] [--width 1440]
+#   capture.sh interact <url> [-o out.png] [--width 1440] [--height 900] [--dsf 1]
+#                       [--selector <css>] [--fullpage]
+#                       [--click <css>] [--wait <ms>] [--waitfor <css>] [--scroll <px>]
+#   capture.sh screen   [-o out.png]
+#   capture.sh window   <标题或进程名> [-o out.png]
+#   capture.sh clip     [-o out.png]
 #
 set -uo pipefail
 
 OUT_DIR="${HOME}/Pictures/shotkit"
 mkdir -p "${OUT_DIR}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # ---------- Chromium 探测（与 shotframe 一致） ----------
 find_chromium() {
@@ -26,6 +30,56 @@ find_chromium() {
     if [[ -x "${c}" ]]; then echo "${c}"; return; fi
   done
   command -v chromium chromium-browser google-chrome chrome 2>/dev/null | head -1
+}
+
+# ---------- Chromium 自举：找不到时下载 chrome-headless-shell ----------
+# 参考 WholeNightCoding/web-screenshot 的思路：无头壳约 100MB，缓存到
+# ~/.cache/wsl-capture/，仅首次需要；shotframe 的探测逻辑也会复用这个缓存
+CHS_HOME="${XDG_CACHE_HOME:-${HOME}/.cache}/wsl-capture/chrome-headless-shell"
+CHS_BIN="${CHS_HOME}/chrome-headless-shell-linux64/chrome-headless-shell"
+# last-known-good-versions.json 取不到时的回退版本（真实存在过的 Stable）
+CHS_FALLBACK_VER="140.0.7339.80"
+
+fetch_text() {
+  if command -v curl >/dev/null 2>&1; then curl -fsSL "$1"
+  elif command -v wget >/dev/null 2>&1; then wget -qO- "$1"
+  else return 1; fi
+}
+fetch_to() {
+  if command -v curl >/dev/null 2>&1; then curl -fSL "$1" -o "$2"
+  elif command -v wget >/dev/null 2>&1; then wget -qO "$2" "$1"
+  else return 1; fi
+}
+
+ensure_headless_shell() {
+  [[ -x "${CHS_BIN}" ]] && { echo "${CHS_BIN}"; return 0; }
+  # 自举包只有 linux64 构建可用——macOS/Git-Bash 上下载也跑不了，直接拒绝
+  [[ "$(uname -s)" == "Linux" ]] || { echo "✗ 自举下载仅支持 Linux/WSL；请安装本机 Chromium 或设置 SHOTFRAME_CHROMIUM" >&2; return 1; }
+  command -v curl >/dev/null 2>&1 || command -v wget >/dev/null 2>&1 || return 1
+
+  echo "⚙ 未找到 Chromium，正在下载 chrome-headless-shell 到 ${CHS_HOME}（约 100MB，仅首次）..." >&2
+  local ver
+  ver="$(fetch_text "https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions.json" 2>/dev/null \
+    | sed -n 's/.*"Stable":{[^}]*"version":"\([0-9.]*\)".*/\1/p')"
+  [[ -n "${ver}" ]] || ver="${CHS_FALLBACK_VER}"
+
+  mkdir -p "${CHS_HOME}"
+  local zip="${CHS_HOME}/chs.zip"
+  if ! fetch_to "https://storage.googleapis.com/chrome-for-testing-public/${ver}/linux64/chrome-headless-shell-linux64.zip" "${zip}"; then
+    echo "✗ 下载失败（版本 ${ver}）" >&2; rm -f "${zip}"; return 1
+  fi
+  if command -v unzip >/dev/null 2>&1; then
+    unzip -q -o "${zip}" -d "${CHS_HOME}" || { rm -f "${zip}"; return 1; }
+  elif command -v python3 >/dev/null 2>&1; then
+    python3 -c 'import zipfile,sys; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])' "${zip}" "${CHS_HOME}" || { rm -f "${zip}"; return 1; }
+  else
+    echo "✗ 解压需要 unzip 或 python3（sudo apt install unzip）" >&2; rm -f "${zip}"; return 1
+  fi
+  rm -f "${zip}"
+  chmod +x "${CHS_BIN}" 2>/dev/null
+  if [[ -x "${CHS_BIN}" ]]; then echo "${CHS_BIN}"; return 0; fi
+  echo "✗ 解压后未找到可执行文件: ${CHS_BIN}" >&2
+  return 1
 }
 
 # ---------- 模式: browser ----------
@@ -45,14 +99,23 @@ cmd_browser() {
 
   local chromium
   chromium="$(find_chromium)" || true
+  # 找不到系统浏览器时自举下载 chrome-headless-shell（缓存复用，仅首次下载）
   if [[ -z "${chromium}" ]]; then
-    echo "✗ 未找到 Chromium，请安装（sudo apt install chromium）或设置 SHOTFRAME_CHROMIUM" >&2
+    chromium="$(ensure_headless_shell)" || true
+  fi
+  if [[ -z "${chromium}" ]]; then
+    echo "✗ 未找到 Chromium 且自举下载失败。请安装（sudo apt install chromium）或设置 SHOTFRAME_CHROMIUM" >&2
     return 1
   fi
 
+  # chrome-headless-shell 本身就是无头实现，只认旧版 headless 开关，
+  # 传 --headless=new 反而不兼容；常规 Chrome/Chromium 则仍需要它
+  local headless_flag="--headless=new"
+  case "$(basename "${chromium}")" in *headless-shell*) headless_flag="";; esac
+
   # 说明：Chromium 命令行没有 --full-page 这类整页截图开关（那是 Puppeteer/Playwright
   # 的 API），整页截图需走 CDP，本 skill 只做视口截图，宽度用 --width 控制
-  "${chromium}" --headless=new --disable-gpu --no-sandbox --hide-scrollbars \
+  "${chromium}" ${headless_flag} --disable-gpu --no-sandbox --hide-scrollbars \
     --window-size="${width},1200" --screenshot="${out}" \
     "${url}" >/dev/null 2>&1
 
@@ -60,6 +123,76 @@ cmd_browser() {
     echo "✅ 网页截图: ${out}"
   else
     echo "✗ 网页截图失败: ${url}" >&2
+    return 1
+  fi
+}
+
+# ---------- 模式: interact（剧本化截图，可选增强） ----------
+# browser 模式只能"打开即截"。interact 用 puppeteer-core 驱动同一 Chromium：
+# 点选择器、等元素、滚动后再截，也可以只截某个元素或整页。
+# 代价：首次使用要 npm install puppeteer-core 到缓存目录（非项目依赖）。
+RT_HOME="${XDG_CACHE_HOME:-${HOME}/.cache}/wsl-capture/runtime"
+
+ensure_runtime() {
+  [[ -d "${RT_HOME}/node_modules/puppeteer-core" ]] && return 0
+  command -v node >/dev/null 2>&1 || { echo "✗ interact 模式需要 Node.js" >&2; return 1; }
+  command -v npm >/dev/null 2>&1 || { echo "✗ interact 模式需要 npm" >&2; return 1; }
+  mkdir -p "${RT_HOME}"
+  [[ -f "${RT_HOME}/package.json" ]] || printf '{"name":"wsl-capture-runtime","private":true}\n' > "${RT_HOME}/package.json"
+  echo "⚙ 安装 puppeteer-core 到 ${RT_HOME}（仅首次，约几 MB，不含浏览器本体）..." >&2
+  npm --prefix "${RT_HOME}" install 'puppeteer-core@^24' --no-fund --no-audit --loglevel=error >&2 || return 1
+  [[ -d "${RT_HOME}/node_modules/puppeteer-core" ]]
+}
+
+cmd_interact() {
+  local url="" out="" width="1440" height="900" dsf="1" selector="" fullpage=""
+  local -a acts=()
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -o|--output) out="$2"; shift 2 ;;
+      --width)   width="$2"; shift 2 ;;
+      --height)  height="$2"; shift 2 ;;
+      --dsf)     dsf="$2"; shift 2 ;;
+      --selector|--sel) selector="$2"; shift 2 ;;
+      --fullpage) fullpage="1"; shift ;;
+      --click)   acts+=("click:$2"); shift 2 ;;
+      --wait)    acts+=("wait:$2"); shift 2 ;;
+      --waitfor) acts+=("waitfor:$2"); shift 2 ;;
+      --scroll)  acts+=("scroll:$2"); shift 2 ;;
+      -*) echo "未知参数: $1" >&2; exit 2 ;;
+      *) url="$1"; shift ;;
+    esac
+  done
+  [[ -z "${url}" ]] && { echo "用法: capture.sh interact <url> [-o out.png] [--width 1440] [--height 900] [--dsf 1] [--selector <css>] [--fullpage] [--click <css>] [--wait <ms>] [--waitfor <css>] [--scroll <px>]" >&2; exit 2; }
+  # 与 browser 模式一致：数值参数在 bash 层校验，错误信息更可读
+  for pair in "width:${width}" "height:${height}" "dsf:${dsf}"; do
+    local k="${pair%%:*}" v="${pair#*:}"
+    [[ "${v}" =~ ^[0-9]+([.][0-9]+)?$ ]] || { echo "✗ --${k} 必须是正数，收到: ${v}" >&2; exit 2; }
+  done
+  out="${out:-${OUT_DIR}/interact-$(date +%H%M%S).png}"
+
+  local chromium
+  chromium="$(find_chromium)" || true
+  if [[ -z "${chromium}" ]]; then
+    chromium="$(ensure_headless_shell)" || true
+  fi
+  if [[ -z "${chromium}" ]]; then
+    echo "✗ 未找到 Chromium 且自举下载失败。请安装（sudo apt install chromium）或设置 SHOTFRAME_CHROMIUM" >&2
+    return 1
+  fi
+  ensure_runtime || { echo "✗ 剧本运行时安装失败（需要网络 + npm）" >&2; return 1; }
+
+  local -a argv=(--chromium "${chromium}" --url "${url}" --out "${out}"
+    --width "${width}" --height "${height}" --dsf "${dsf}")
+  [[ -n "${selector}" ]] && argv+=(--selector "${selector}")
+  [[ -n "${fullpage}" ]] && argv+=(--fullpage)
+  local a
+  for a in "${acts[@]}"; do argv+=(--act "${a}"); done
+
+  if NODE_PATH="${RT_HOME}/node_modules" node "${SCRIPT_DIR}/interact.cjs" "${argv[@]}" && [[ -s "${out}" ]]; then
+    echo "✅ 剧本截图: ${out}"
+  else
+    echo "✗ 剧本截图失败: ${url}" >&2
     return 1
   fi
 }
@@ -220,12 +353,13 @@ cmd_clip() {
 
 # ---------- 入口 ----------
 mode="${1:-}"
-[[ -z "${mode}" ]] && { echo "用法: capture.sh <browser|screen|window|clip> [参数...]" >&2; exit 2; }
+[[ -z "${mode}" ]] && { echo "用法: capture.sh <browser|interact|screen|window|clip> [参数...]" >&2; exit 2; }
 shift
 case "${mode}" in
-  browser) cmd_browser "$@" ;;
-  screen)  cmd_screen "$@" ;;
-  window)  cmd_window "$@" ;;
-  clip)    cmd_clip "$@" ;;
-  *) echo "未知模式: ${mode}（支持 browser / screen / window / clip）" >&2; exit 2 ;;
+  browser)  cmd_browser "$@" ;;
+  interact) cmd_interact "$@" ;;
+  screen)   cmd_screen "$@" ;;
+  window)   cmd_window "$@" ;;
+  clip)     cmd_clip "$@" ;;
+  *) echo "未知模式: ${mode}（支持 browser / interact / screen / window / clip）" >&2; exit 2 ;;
 esac

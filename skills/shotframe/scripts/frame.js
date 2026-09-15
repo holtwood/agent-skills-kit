@@ -4,18 +4,25 @@
  *
  * 用法:
  *   node frame.js --input <png> --preset <browser|macos|device> --output <png> \
- *     [--device iphone|ipad|macbook] [--title T] [--url U] \
+ *     [--device iphone|ipad|macbook|galaxy|galaxy-flip|galaxy-fold] \
+ *     [--browser chrome|safari] [--title T] [--url U] \
  *     [--theme auto|light|dark] [--trim] [--padding 56] [--chromium PATH] \
- *     [--bg aurora|solid:#0f172a|linear:#a8edea,#fed6e3|none] [--angle 135] \
- *     [--ratio twitter|1.91:1] [--width 1200] [--inset 12] [--radius 16] \
+ *     [--bg aurora|solid:#0f172a|linear:#a8edea,#fed6e3|image:路径|none] [--angle 135] \
+ *     [--ratio twitter|appstore-69|play-phone|1.91:1] [--width 1200] [--inset 12] [--radius 16] \
+ *     [--headline 标题] [--subcopy 副标题] [--bleed [px]] [--tilt 度数] \
+ *     [--shadow none|soft|lifted] [--format png|pdf] \
  *     [--transparent] [--all] [--list] [--json]
  *
  * --theme auto : 按截图亮度自动选择 chrome(标签页/标题栏)与背景的深浅配色
  * --trim       : 裁掉输入四周与角落同色的均匀空白边(桌面背景/视口留白)后再套框
- * --bg         : 背景，命名渐变预设（随 --theme 取深浅变体）/ 纯色 / 自定义渐变 / 透明
- * --ratio      : 社媒画布比例，只扩画布不裁剪（多出来的空间由背景填充）
+ * --bg         : 背景，命名渐变预设（随 --theme 取深浅变体）/ 纯色 / 自定义渐变 / 图片文件 / 透明
+ * --ratio      : 画布比例（社媒 + App Store / Play 商店精确比例），只扩画布不裁剪
  * --width      : 目标输出宽度，只缩小不放大（通过设备像素比实现，不重采样）
  * --inset      : 采样截图边缘颜色，在卡片内侧加一圈同色衬边
+ * --headline   : 画布顶部大字标题（随主题配色），--subcopy 副文案
+ * --bleed      : 卡片底边出血裁切（不带值 = 卡片高 10%，或给 px），--tilt 倾斜度数
+ * --shadow     : 卡片投影档位 none/soft/lifted（默认随主题）
+ * --format     : pdf 走 Chromium printToPDF 输出矢量文件（--width 对其无效）
  * --all        : 对每个背景预设各出一张（--output 作为基名，如 out.png → out-aurora.png）
  * --list       : 列出所有可用取值后退出（agent 用来发现能力）
  * --json       : 输出机读回执（stdout），人类可读日志走 stderr
@@ -32,8 +39,9 @@ const { pathToFileURL } = require('url');
 
 // ---------- 参数解析 ----------
 const VALUE_FLAGS = new Set([
-  'input', 'output', 'preset', 'device', 'title', 'url', 'theme', 'background',
+  'input', 'output', 'preset', 'device', 'browser', 'title', 'url', 'theme', 'background',
   'padding', 'chromium', 'bg', 'angle', 'ratio', 'width', 'inset', 'radius',
+  'headline', 'subcopy', 'bleed', 'tilt', 'shadow', 'format',
 ]);
 function parseArgs(argv) {
   const args = {};
@@ -42,10 +50,8 @@ function parseArgs(argv) {
     if (a.startsWith('--')) {
       const key = a.slice(2);
       const next = argv[i + 1];
-      if (VALUE_FLAGS.has(key) && next !== undefined) {
-        args[key] = next;
-        i++;
-      } else if (next !== undefined && !next.startsWith('--')) {
+      // 值不以 -- 开头才消费；--bleed 这类可带可不带值的参数因此能区分"带值"与"裸旗标"
+      if (next !== undefined && !next.startsWith('--')) {
         args[key] = next;
         i++;
       } else {
@@ -318,6 +324,7 @@ function findChromium(forced) {
     process.env.SHOTFRAME_CHROMIUM,
     process.env.CHROME_PATH,
     ...globPlaywrightChromium(),
+    ...wslCaptureChromium(),
     ...platformChromiumPaths(),
   ];
   for (const c of candidates) {
@@ -386,11 +393,25 @@ function globPlaywrightChromium() {
   return out;
 }
 
+// wsl-capture 自举下载的 chrome-headless-shell 缓存（两个 skill 共用，仅 Linux/WSL 会存在）
+function wslCaptureChromium() {
+  if (IS_WIN || IS_MAC) return [];
+  const xdg = process.env.XDG_CACHE_HOME;
+  const base = xdg && path.isAbsolute(xdg) ? xdg : path.join(os.homedir(), '.cache');
+  const p = path.join(base, 'wsl-capture', 'chrome-headless-shell', 'chrome-headless-shell-linux64', 'chrome-headless-shell');
+  return fs.existsSync(p) ? [p] : [];
+}
+
 // ---------- 设备框配置（逻辑 CSS 像素） ----------
+// notch: 'island' 灵动岛 / 'dot' 前摄圆点（屏外）/ 'punch' 屏内居中打孔 / 'punch-rt' 屏内右上打孔
+// buttons: 'iphone' 左音量+静音/右电源 / 'galaxy' 右音量+电源；hinge: Fold 展开屏中缝
 const DEVICES = {
-  iphone:  { screenW: 390, bezel: 18, radius: 56, screenRadius: 44, notch: 'island', home: true,  buttons: true },
-  ipad:    { screenW: 760, bezel: 30, radius: 38, screenRadius: 22, notch: 'dot',    home: true,  buttons: false },
+  iphone:  { screenW: 390, bezel: 18, radius: 56, screenRadius: 44, notch: 'island',   home: true,  buttons: 'iphone' },
+  ipad:    { screenW: 760, bezel: 30, radius: 38, screenRadius: 22, notch: 'dot',      home: true,  buttons: false },
   macbook: { screenW: 1180, bezel: 22, radius: 18, screenRadius: 8, notch: true, chin: 34, buttons: false },
+  galaxy:       { screenW: 390, bezel: 8,  radius: 32, screenRadius: 26, notch: 'punch',    home: true,  buttons: 'galaxy' },
+  'galaxy-flip':  { screenW: 390, bezel: 7,  radius: 36, screenRadius: 30, notch: 'punch',    home: true,  buttons: 'galaxy' },
+  'galaxy-fold':  { screenW: 640, bezel: 14, radius: 34, screenRadius: 24, notch: 'punch-rt', home: false, buttons: false, hinge: true },
 };
 
 // ---------- 主题配色（chrome = 标签页/标题栏/地址栏 + 外层背景） ----------
@@ -433,7 +454,9 @@ const GRADIENTS = {
   mono:     { light: 'linear-gradient(ANGLEdeg,#f4f6f9 0%,#e3e8ee 100%)',            dark: 'linear-gradient(ANGLEdeg,#20252f 0%,#14181f 100%)' },
 };
 
-// ---------- 社媒画布比例 ----------
+// ---------- 画布比例 ----------
+// 社媒比例 + 应用商店精确比例（配合 --width 落到官方像素：
+// `--ratio appstore-69 --width 1320` → 输出恰好 1320×2868）
 const RATIOS = {
   linkedin: [1.91, 1], og: [1.91, 1], facebook: [1.91, 1],
   'linkedin-square': [1, 1], instagram: [1, 1],
@@ -441,9 +464,20 @@ const RATIOS = {
   'linkedin-banner': [4, 1],
   twitter: [16, 9], x: [16, 9], youtube: [16, 9],
   story: [9, 16],
+  // App Store / Google Play / Microsoft Store 官方槽位
+  'appstore-69': [1320, 2868],   // iPhone 6.9"（1290×2796 也接受）
+  'appstore-67': [1290, 2796],   // iPhone 6.7"
+  'appstore-65': [1284, 2778],   // iPhone 6.5"（1242×2688 也接受）
+  'appstore-ipad': [2064, 2752], // iPad 13"（2048×2732 也接受）
+  'appstore-mac': [2560, 1600],  // Mac App Store
+  'play-phone': [1080, 1920],    // Google Play 手机
+  'play-tablet': [1920, 1080],   // Play 平板横版
+  'play-feature': [1024, 500],   // Play feature graphic
+  'ms-store': [1920, 1080],      // Microsoft Store
 };
 
 const HEX_RE = /^#[0-9a-fA-F]{3,8}$/;
+const IMG_MIME = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif' };
 
 // 解析 --ratio：命名比例，或任意 W:H / WxH
 function parseRatio(spec) {
@@ -489,6 +523,14 @@ function resolveBackground(spec, theme, angle) {
       label: raw,
     };
   }
+  // --bg image:<路径>：真实纹理/照片当背景（center/cover 铺满），读不进返回 null
+  if (raw.toLowerCase().startsWith('image:')) {
+    const p = raw.slice(6).trim();
+    const mime = IMG_MIME[path.extname(p).toLowerCase()];
+    if (!mime || !fs.existsSync(p)) return null;
+    const uri = `data:${mime};base64,${fs.readFileSync(p).toString('base64')}`;
+    return { css: `url("${uri}") center/cover no-repeat`, transparent: false, label: `image:${path.basename(p)}` };
+  }
   if (GRADIENTS[raw]) {
     return {
       css: GRADIENTS[raw][theme].replace('ANGLE', String(deg)),
@@ -498,6 +540,49 @@ function resolveBackground(spec, theme, angle) {
     };
   }
   return null;
+}
+
+// ---------- 卡片投影档位（默认随主题；soft 更轻、lifted 更浮） ----------
+const SHADOWS = {
+  none: { light: 'none', dark: 'none' },
+  soft: {
+    light: '0 14px 36px -12px rgba(15,23,42,.25), 0 5px 14px -8px rgba(15,23,42,.14)',
+    dark: '0 18px 44px -14px rgba(2,6,23,.65), 0 5px 14px -8px rgba(2,6,23,.45)',
+  },
+  lifted: {
+    light: '0 36px 90px -18px rgba(15,23,42,.42), 0 14px 36px -12px rgba(15,23,42,.24)',
+    dark: '0 44px 110px -22px rgba(2,6,23,.9), 0 14px 36px -12px rgba(2,6,23,.6)',
+  },
+};
+
+// 返回 null 表示取值非法；未指定（''）返回主题默认投影
+function resolveShadow(spec, theme) {
+  if (!spec) return THEMES[theme].shadow;
+  const s = SHADOWS[spec];
+  return s ? s[theme] : null;
+}
+
+// ---------- 文案层排版估算（--headline / --subcopy） ----------
+// 画布顶部大字文案：字号按画布宽度取比例，超长自动收缩/换行（最多 2 行）
+function copyLayout(canvasW, headline, subcopy) {
+  if (!headline && !subcopy) return { copyH: 0, hpx: 0, spx: 0, lines: 0 };
+  // 字宽估算：CJK 全角≈1，拉丁/数字≈0.56（粗体 sans 的平均宽度）
+  const units = (s) => [...String(s)].reduce((n, c) => n + (c.codePointAt(0) > 0x2e7f ? 1 : 0.56), 0);
+  const maxW = canvasW * 0.86;
+  let hpx = 0, lines = 0;
+  if (headline) {
+    hpx = Math.min(150, Math.max(28, Math.round(canvasW * 0.075)));
+    const u = units(headline);
+    while (hpx > 24 && u * hpx > maxW) hpx -= 2; // 先缩到单行能放下
+    lines = Math.min(2, Math.max(1, Math.ceil((u * hpx) / maxW)));
+  }
+  const spx = subcopy ? Math.max(18, Math.round((hpx || canvasW * 0.05) * 0.44)) : 0;
+  const copyH = Math.round(
+    (headline ? lines * hpx * 1.24 : 0) +
+    (subcopy ? spx * 1.6 + (headline ? 12 : 0) : 0) +
+    24
+  );
+  return { copyH, hpx, spx, lines };
 }
 
 // 采样截图四周最常见的颜色（--inset 用）；量化到 16 阶以容忍噪点
@@ -528,12 +613,28 @@ function esc(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-function buildHtml({ imgDataUri, imgW, imgH, preset, device, title, url, theme, bgCss, canvasW, canvasH, radius, inset, insetColor }) {
+function buildHtml({ imgDataUri, imgW, imgH, preset, device, browser, title, url, theme, bgCss, canvasW, canvasH, radius, inset, insetColor, shadowCss, headline, subcopy, copyH, hpx, spx, bleedPx, tiltDeg, pdfPage, pad }) {
   const T = THEMES[theme] || THEMES.light;
   const bg = bgCss || T.bg;
+  const shadow = shadowCss || T.shadow;
   const cardRadius = Number.isFinite(radius) ? radius : 14;
   // --inset：在卡片内侧衬一圈「截图边缘色」，截图等比缩小填进去
   const matteCss = inset > 0 ? `padding:${inset}px;background:${insetColor || '#fff'};` : '';
+  // --bleed/--tilt：卡片底边出血 + 倾斜构图（商店营销图的经典姿态）
+  const cardFx = (bleedPx || tiltDeg)
+    ? `transform:translateY(${bleedPx || 0}px) rotate(${tiltDeg || 0}deg);`
+    : '';
+  // --headline/--subcopy：画布顶部文案层，颜色随主题
+  const copyColor = theme === 'dark' ? '#f1f5f9' : '#0f172a';
+  const copyHtml = (headline || subcopy) ? `
+    <div class="copy" style="height:${copyH || 0}px">
+      ${headline ? `<h1 style="font-size:${hpx}px">${esc(headline)}</h1>` : ''}
+      ${subcopy ? `<p style="font-size:${spx}px">${esc(subcopy)}</p>` : ''}
+    </div>` : '';
+  const copyCss = `
+      .copy { width:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:0 7%; overflow:hidden; }
+      .copy h1 { font-weight:800; letter-spacing:-.02em; line-height:1.18; color:${copyColor}; }
+      .copy p { font-weight:500; line-height:1.4; color:${copyColor}; opacity:.72; margin-top:${Math.round((spx || 16) * 0.55)}px; }`;
 
   let inner = '';
   // contentW/H = 被套框元素的尺寸（不含四周留白）；画布尺寸由调用方按留白与比例算出
@@ -552,7 +653,7 @@ function buildHtml({ imgDataUri, imgW, imgH, preset, device, title, url, theme, 
     if (device === 'macbook') {
       contentW = screenW + b * 2;
       contentH = b + screenH + b + d.chin;
-      inner = `<div class="mac" style="--r:${d.radius}px;--sr:${d.screenRadius}px;--b:${b}px;--c:${d.chin}px;--iw:${innerW}px;--ih:${innerH}px;width:${screenW + b * 2}px">
+      inner = `<div class="mac" style="${cardFx}--r:${d.radius}px;--sr:${d.screenRadius}px;--b:${b}px;--c:${d.chin}px;--iw:${innerW}px;--ih:${innerH}px;width:${screenW + b * 2}px">
   <div class="lid"><div class="screen" style="${matteCss}"><img src="${imgDataUri}"><div class="notch"></div></div></div>
   <div class="chin"><div class="logo"></div></div>
 </div>`;
@@ -562,11 +663,19 @@ function buildHtml({ imgDataUri, imgW, imgH, preset, device, title, url, theme, 
       const topAccent =
         d.notch === 'island' ? '<div class="island"></div>'
         : d.notch === 'dot' ? '<div class="camdot"></div>' : '';
-      const btns = d.buttons ? '<div class="btn lt"></div><div class="btn lm"></div><div class="btn rt"></div>' : '';
+      // 屏内元素（打孔前摄 / Fold 铰链）叠在截图上层，跟随屏幕圆角裁剪
+      const screenOverlay =
+        (d.notch === 'punch' ? '<div class="punch"></div>'
+        : d.notch === 'punch-rt' ? '<div class="punch rt"></div>' : '') +
+        (d.hinge ? '<div class="hinge"></div>' : '');
+      const btns =
+        d.buttons === 'iphone' ? '<div class="btn lt"></div><div class="btn lm"></div><div class="btn rt"></div>'
+        : d.buttons === 'galaxy' ? '<div class="btn gv"></div><div class="btn gp"></div>'
+        : '';
       const home = d.home ? '<div class="homeind"></div>' : '';
-      inner = `<div class="device" style="--r:${d.radius}px;--sr:${d.screenRadius}px;--b:${b}px;--iw:${innerW}px;--ih:${innerH}px;width:${screenW + b * 2}px">
+      inner = `<div class="device" style="${cardFx}--r:${d.radius}px;--sr:${d.screenRadius}px;--b:${b}px;--iw:${innerW}px;--ih:${innerH}px;width:${screenW + b * 2}px">
   <div class="bezel">
-    <div class="screen" style="${matteCss}"><img src="${imgDataUri}"></div>
+    <div class="screen" style="${matteCss}"><img src="${imgDataUri}">${screenOverlay}</div>
     ${topAccent}${home}
   </div>
   ${btns}
@@ -575,18 +684,22 @@ function buildHtml({ imgDataUri, imgW, imgH, preset, device, title, url, theme, 
 
     deviceCss = `
       .device, .mac { position:relative; flex:none; }
-      .bezel { background:#0b0f14; border-radius:var(--r); padding:var(--b); border:1px solid #1f2937; box-shadow:${T.shadow}; position:relative; }
-      .device .screen, .lid .screen { border-radius:var(--sr); overflow:hidden; line-height:0; background:#000; }
+      .bezel { background:#0b0f14; border-radius:var(--r); padding:var(--b); border:1px solid #1f2937; box-shadow:${shadow}; position:relative; }
+      .device .screen, .lid .screen { position:relative; border-radius:var(--sr); overflow:hidden; line-height:0; background:#000; }
       .device img, .mac img { display:block; width:var(--iw); height:var(--ih); }
       .island { position:absolute; top:calc(var(--b) + 8px); left:50%; transform:translateX(-50%); width:126px; height:34px; background:#000; border-radius:999px; box-shadow:inset 0 0 0 1px #1f2937; }
       .camdot { position:absolute; top:calc((var(--b) - 10px) / 2); left:50%; transform:translateX(-50%); width:10px; height:10px; border-radius:50%; background:#475569; box-shadow:0 0 0 3px #0b0f14; }
+      .punch { position:absolute; top:14px; left:50%; transform:translateX(-50%); width:15px; height:15px; border-radius:50%; background:#000; box-shadow:inset 0 0 3px 1px #1e293b; }
+      .punch.rt { left:auto; right:11%; transform:none; }
+      .hinge { position:absolute; top:0; bottom:0; left:50%; width:5px; transform:translateX(-50%); background:linear-gradient(90deg,transparent 0%,rgba(0,0,0,.14) 35%,rgba(0,0,0,.22) 50%,rgba(0,0,0,.14) 65%,transparent 100%); }
       .homeind { position:absolute; bottom:calc(var(--b) + 7px); left:50%; transform:translateX(-50%); width:132px; height:5px; border-radius:999px; background:#27272a; }
       .btn { position:absolute; background:#232a33; border-radius:4px; }
       .btn.lt { left:-4px; top:16%; width:4px; height:9%; min-height:22px; }
       .btn.lm { left:-4px; top:27%; width:4px; height:12%; min-height:30px; }
       .btn.rt { right:-4px; top:21%; width:4px; height:17%; min-height:44px; }
-      .lid { background:linear-gradient(180deg,#2b2e36,#23262d); border-radius:var(--r); padding:var(--b); box-shadow:${T.shadow}; border:1px solid #1a1d23; border-bottom:none; }
-      .mac .screen { position:relative; }
+      .btn.gv { right:-4px; top:24%; width:4px; height:13%; min-height:34px; }
+      .btn.gp { right:-4px; top:39%; width:4px; height:8%; min-height:22px; }
+      .lid { background:linear-gradient(180deg,#2b2e36,#23262d); border-radius:var(--r); padding:var(--b); box-shadow:${shadow}; border:1px solid #1a1d23; border-bottom:none; }
       .notch { position:absolute; top:0; left:50%; transform:translateX(-50%); width:150px; height:22px; background:#000; border-radius:0 0 12px 12px; }
       .chin { height:var(--c); background:linear-gradient(180deg,#3a3e47,#2b2e36); border-radius:0 0 var(--r) var(--r); display:flex; align-items:center; justify-content:center; border:1px solid #1a1d23; border-top:none; }
       .logo { width:16px; height:16px; border-radius:50%; background:#8a8f9a; }`;
@@ -600,6 +713,18 @@ function buildHtml({ imgDataUri, imgW, imgH, preset, device, title, url, theme, 
         <div class="titlebar">
           <div class="lights"><span class="light r"></span><span class="light y"></span><span class="light g"></span></div>
           ${title ? `<div class="ttl">${esc(title)}</div>` : ''}
+        </div>`;
+    } else if (browser === 'safari') {
+      // Safari 紧凑单行工具栏：左侧信号灯 + 居中地址胶囊 + 右侧控制位
+      const pill = url || title;
+      chrome = `
+        <div class="safbar">
+          <div class="lights"><span class="light r"></span><span class="light y"></span><span class="light g"></span></div>
+          <div class="safurl">
+            <svg class="lock" viewBox="0 0 24 24" fill="none" stroke="${T.lockStroke}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            <span class="url">${pill ? esc(pill) : ''}</span>
+          </div>
+          <div class="saftools"><span class="ctrl"></span><span class="ctrl"></span></div>
         </div>`;
     } else {
       chrome = `
@@ -615,15 +740,15 @@ function buildHtml({ imgDataUri, imgW, imgH, preset, device, title, url, theme, 
           </div>
         </div>`;
     }
-    const topBarH = preset === 'macos' ? 46 : 80;
+    const topBarH = preset === 'macos' ? 46 : (browser === 'safari' ? 52 : 80);
     contentW = imgW;
     contentH = innerH + inset * 2 + topBarH;
-    inner = `<div class="win">${chrome}<div class="content" style="${matteCss}"><img src="${imgDataUri}" style="width:${innerW}px;height:${innerH}px"></div></div>`;
+    inner = `<div class="win" style="${cardFx}">${chrome}<div class="content" style="${matteCss}"><img src="${imgDataUri}" style="width:${innerW}px;height:${innerH}px"></div></div>`;
 
     deviceCss = `
       .win {
         background:${T.winBg}; border-radius:${cardRadius}px; overflow:hidden;
-        box-shadow:${T.shadow}; border:1px solid ${T.winBorder};
+        box-shadow:${shadow}; border:1px solid ${T.winBorder};
       }
       .titlebar {
         height:46px; background:${T.titlebarBg}; border-bottom:1px solid ${T.titlebarBorder};
@@ -654,22 +779,41 @@ function buildHtml({ imgDataUri, imgW, imgH, preset, device, title, url, theme, 
       }
       .lock { width:13px; height:13px; flex-shrink:0; }
       .url { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+      .safbar {
+        height:52px; background:${T.tabbarBg}; border-bottom:1px solid ${T.tabbarBorder};
+        display:flex; align-items:center; padding:0 14px; gap:14px;
+      }
+      .safbar .lights { flex:0 0 auto; }
+      .saftools { min-width:55px; display:flex; justify-content:flex-end; gap:8px; flex:0 0 auto; }
+      .safurl {
+        flex:1; max-width:52%; height:30px; margin:0 auto;
+        background:${T.addrBg}; border:1px solid ${T.addrBorder}; border-radius:8px;
+        display:flex; align-items:center; justify-content:center; gap:7px;
+        padding:0 12px; font-size:12.5px; color:${T.addrText};
+      }
+      .safurl .lock { width:11px; height:11px; }
       .content { line-height:0; }
       .content img { display:block; }`;
   }
 
   return {
     html: `<!doctype html><html><head><meta charset="utf-8"><style>
+      ${pdfPage ? `@page { size:${canvasW}px ${canvasH}px; margin:0; }` : ''}
       * { margin:0; padding:0; box-sizing:border-box; }
       html, body { background: ${bg}; }
+      ${pdfPage ? 'html, body { -webkit-print-color-adjust:exact; print-color-adjust:exact; }' : ''}
       body {
         width:${canvasW}px; height:${canvasH}px;
-        display:flex; align-items:center; justify-content:center;
+        display:flex; flex-direction:column; align-items:center;
+        /* 有文案层时：上下各留 pad，标题顶置 + 卡片沉底（商店图构图）；否则整体居中 */
+        ${copyHtml ? `padding:${pad || 0}px 0; justify-content:space-between;` : 'justify-content:center;'}
         font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;
         overflow:hidden;
       }
       ${deviceCss}
+      ${copyCss}
     </style></head><body>
+      ${copyHtml}
       ${inner}
     </body></html>`,
     contentW,
@@ -684,16 +828,51 @@ const MAX_OUTPUT_PIXELS = 120e6;      // 输出像素总量上限（≈120MP）
 // ---------- 渲染 ----------
 // 用系统 Chromium 无头渲染 HTML 到 PNG；尺寸不符时按差值校正窗口尺寸重试一次
 // （防御无头窗口被显示环境钳制）。小数 device-scale-factor 会有 1px 舍入，故容差为 ±1。
-function renderFrame({ chromium, html, output, cssW, cssH, scale, transparent }) {
+// format=pdf 时改走 printToPDF：输出为矢量（@page 已按画布尺寸写入 HTML），
+// 像素校验不适用，改为校验 %PDF 文件头。
+function renderFrame({ chromium, html, output, cssW, cssH, scale, transparent, format }) {
   const tmpHtml = path.join(os.tmpdir(), `shotframe-${process.pid}-${crypto.randomBytes(6).toString('hex')}.html`);
   fs.writeFileSync(tmpHtml, html, { flag: 'wx', mode: 0o600 });
   fs.mkdirSync(path.dirname(path.resolve(output)), { recursive: true });
 
   const expectedW = Math.round(cssW * scale);
   const expectedH = Math.round(cssH * scale);
+  // chrome-headless-shell（wsl-capture 自举下载的无头壳）本身就是无头实现，
+  // 只认旧版 headless 开关，传 --headless=new 反而不兼容
+  const isHeadlessShell = /headless-shell/i.test(path.basename(chromium));
+
+  if (format === 'pdf') {
+    const flags = [
+      ...(isHeadlessShell ? [] : ['--headless=new']),
+      '--disable-gpu',
+      '--no-sandbox',
+      // 去页眉页脚：新旧 headless 的开关名不同
+      isHeadlessShell ? '--print-to-pdf-no-header' : '--no-pdf-header-footer',
+      `--print-to-pdf=${path.resolve(output)}`,
+      pathToFileURL(tmpHtml).href,
+    ];
+    try {
+      execFileSync(chromium, flags, { stdio: 'ignore', timeout: 60000 });
+    } finally {
+      fs.rmSync(tmpHtml, { force: true });
+    }
+    let ok = false;
+    try {
+      ok = fs.readFileSync(path.resolve(output)).subarray(0, 5).toString('latin1') === '%PDF-';
+    } catch (_) { /* 读不到视为未产出 */ }
+    return {
+      reason: ok ? 'ok' : 'no-output',
+      verified: ok,
+      expectedW: cssW,
+      expectedH: cssH,
+      width: ok ? cssW : null,
+      height: ok ? cssH : null,
+    };
+  }
+
   const renderOnce = (winW, winH) => {
     const flags = [
-      '--headless=new',
+      ...(isHeadlessShell ? [] : ['--headless=new']),
       '--disable-gpu',
       '--no-sandbox',
       '--hide-scrollbars',
@@ -758,13 +937,14 @@ function main() {
   const strArg = (v) => (typeof v === 'string' ? v : '');
   // 严格数值解析：写错就报错，不静默回退。
   // （否则 `--padding 5O`（字母 O）会悄悄变成默认 56，调用方以为生效了）
-  const numArg = (v, name, dflt, { integer = false, min = null } = {}) => {
+  const numArg = (v, name, dflt, { integer = false, min = null, max = null } = {}) => {
     const s = strArg(v);
     if (s === '') return dflt;
     const n = Number(s);
     if (!Number.isFinite(n)) fail(2, `config/invalid-${name}`, `--${name} 需要数字，收到: ${s}`);
     if (integer && !Number.isInteger(n)) fail(2, `config/invalid-${name}`, `--${name} 需要整数，收到: ${s}`);
     if (min !== null && n < min) fail(2, `config/invalid-${name}`, `--${name} 不能小于 ${min}，收到: ${s}`);
+    if (max !== null && n > max) fail(2, `config/invalid-${name}`, `--${name} 不能大于 ${max}，收到: ${s}`);
     return n;
   };
   const wantJson = Boolean(args.json);
@@ -794,18 +974,24 @@ function main() {
       exitCode: 0,
       presets: ['browser', 'macos', 'device'],
       devices: Object.keys(DEVICES),
+      browsers: ['chrome', 'safari'],
       themes: ['auto', 'light', 'dark'],
       ratios: Object.keys(RATIOS),
+      shadows: Object.keys(SHADOWS),
+      formats: ['png', 'pdf'],
       backgrounds: Object.keys(GRADIENTS),
-      backgroundForms: ['<preset>', 'solid:#rrggbb', 'linear:#a,#b[,#c]', 'none', 'light', 'dark'],
+      backgroundForms: ['<preset>', 'solid:#rrggbb', 'linear:#a,#b[,#c]', 'image:路径', 'none', 'light', 'dark'],
     };
     if (wantJson) {
       emit(info);
     } else {
       console.log(`presets     : ${info.presets.join(' ')}`);
       console.log(`devices     : ${info.devices.join(' ')}`);
+      console.log(`browsers    : ${info.browsers.join(' ')}   （--browser，仅 preset=browser 生效）`);
       console.log(`themes      : ${info.themes.join(' ')}`);
       console.log(`ratios      : ${info.ratios.join(' ')}   （也支持任意 W:H / WxH）`);
+      console.log(`shadows     : ${info.shadows.join(' ')}   （--shadow；默认随主题）`);
+      console.log(`formats     : ${info.formats.join(' ')}   （--format；pdf 为矢量输出）`);
       console.log(`backgrounds : ${info.backgrounds.join(' ')}`);
       console.log(`background  : ${info.backgroundForms.join('  |  ')}`);
     }
@@ -813,12 +999,13 @@ function main() {
   }
 
   if (typeof args.input !== 'string' || typeof args.output !== 'string') {
-    fail(2, 'usage', '用法: node frame.js --input <png> --preset <browser|macos|device> --output <png> [--device iphone|ipad|macbook] [--title T] [--url U] [--theme auto|light|dark] [--trim] [--bg <preset|solid:#hex|linear:#a,#b|none>] [--angle 135] [--ratio twitter|1.91:1] [--width 1200] [--inset 12] [--radius 16] [--transparent] [--all] [--list] [--json] [--padding 56] [--chromium PATH]');
+    fail(2, 'usage', '用法: node frame.js --input <png> --preset <browser|macos|device> --output <png> [--device iphone|ipad|macbook|galaxy|galaxy-flip|galaxy-fold] [--browser chrome|safari] [--title T] [--url U] [--theme auto|light|dark] [--trim] [--bg <preset|solid:#hex|linear:#a,#b|image:路径|none>] [--angle 135] [--ratio twitter|appstore-69|1.91:1] [--width 1200] [--inset 12] [--radius 16] [--headline 标题] [--subcopy 副文案] [--bleed [px]] [--tilt 度数] [--shadow none|soft|lifted] [--format png|pdf] [--transparent] [--all] [--list] [--json] [--padding 56] [--chromium PATH]');
   }
   const input = args.input;
-  const output = args.output;
+  let output = args.output;
   const preset = strArg(args.preset) || 'browser';
   const device = strArg(args.device) || 'iphone';
+  const browser = strArg(args.browser) || 'chrome';
   const title = strArg(args.title);
   const url = strArg(args.url);
   const themeArg = strArg(args.theme) || 'auto';
@@ -836,7 +1023,22 @@ function main() {
   if (!fs.existsSync(input)) fail(2, 'input/not-found', `输入文件不存在: ${input}`);
   if (!['browser', 'macos', 'device'].includes(preset)) fail(2, 'config/unknown-preset', `未知 preset: ${preset}（支持 browser / macos / device）`);
   if (preset === 'device' && !DEVICES[device]) fail(2, 'config/unknown-device', `未知设备: ${device}（支持 ${Object.keys(DEVICES).join(' / ')}）`);
+  if (!['chrome', 'safari'].includes(browser)) fail(2, 'config/unknown-browser', `未知 browser: ${browser}（支持 chrome / safari）`);
   if (!['auto', 'light', 'dark'].includes(themeArg)) fail(2, 'config/unknown-theme', `未知 theme: ${themeArg}（支持 auto / light / dark）`);
+
+  const format = strArg(args.format) || 'png';
+  if (!['png', 'pdf'].includes(format)) fail(2, 'config/unknown-format', `未知 format: ${format}（支持 png / pdf）`);
+  const shadowArg = strArg(args.shadow);
+  if (shadowArg && !SHADOWS[shadowArg]) fail(2, 'config/unknown-shadow', `未知 shadow: ${shadowArg}（支持 none / soft / lifted）`);
+  const tiltDeg = numArg(args.tilt, 'tilt', 0, { min: -30, max: 30 });
+  // --bleed 可带可不带值：裸写 = 自动取卡片高 10%（卡片高度要等 probe 后才知道）
+  if (typeof args.bleed === 'string') numArg(args.bleed, 'bleed', NaN, { integer: true, min: 0 });
+  // PDF 输出规范扩展名：--output out.png + --format pdf 不该产出「名叫 .png 的 PDF」
+  let pdfRenamed = false;
+  if (format === 'pdf' && !/\.pdf$/i.test(output)) {
+    output = output.replace(/\.[^.\\/]+$/, '') + '.pdf';
+    pdfRenamed = true;
+  }
 
   const ratioArg = strArg(args.ratio);
   const ratio = ratioArg ? parseRatio(ratioArg) : null;
@@ -847,7 +1049,7 @@ function main() {
   const bgSpecs = wantAll ? Object.keys(GRADIENTS) : [bgArg];
   for (const spec of bgSpecs) {
     if (!resolveBackground(spec, 'light', 135)) {
-      fail(2, 'config/unknown-background', `未知背景: ${spec}（支持 ${Object.keys(GRADIENTS).join(' / ')}，或 solid:#hex / linear:#a,#b / none）`);
+      fail(2, 'config/unknown-background', `未知背景: ${spec}（支持 ${Object.keys(GRADIENTS).join(' / ')}，或 solid:#hex / linear:#a,#b / image:路径 / none）`);
     }
   }
 
@@ -920,12 +1122,19 @@ function main() {
   // 主题已确定，解析最终背景（--all 时逐个预设各出一张）
   const variants = bgSpecs.map((spec) => ({ spec, ...resolveBackground(spec, theme, angle) }));
 
-  // 画布：内容尺寸 + 四周留白，再按 --ratio 只扩不裁（多出来的空间由背景填充）
+  // 画布：内容尺寸 + 四周留白，再按 --ratio 只扩不裁（多出来的空间由背景填充）。
+  // 文案层先按「无文案画布宽」估算占高，再并入总高（两步收敛，不做迭代）。
   const probe = buildHtml({
-    imgDataUri: dataUri, imgW, imgH, preset, device, title, url, theme,
+    imgDataUri: dataUri, imgW, imgH, preset, device, browser, title, url, theme,
     bgCss: 'transparent', canvasW: 0, canvasH: 0, radius: radiusArg, inset, insetColor,
   });
-  const canvas = fitToRatio(probe.contentW + pad * 2, probe.contentH + pad * 2, ratio);
+  const base = fitToRatio(probe.contentW + pad * 2, probe.contentH + pad * 2, ratio);
+  const copy = copyLayout(base.width, strArg(args.headline), strArg(args.subcopy));
+  const canvas = fitToRatio(probe.contentW + pad * 2, copy.copyH + probe.contentH + pad * 2, ratio);
+  // --bleed：底边出血 = 卡片向下推出画布底缘，超出部分被画布裁掉
+  const bleedPx = args.bleed === true ? Math.round(probe.contentH * 0.10)
+    : typeof args.bleed === 'string' ? parseInt(args.bleed, 10) : 0;
+  const shadowCss = resolveShadow(shadowArg, theme);
 
   // --width：只缩小不放大。用设备像素比直接渲染到目标宽度（不做整图二次重采样）。
   // 缩放比有自己的下限，低于下限时**明确失败**而不是静默clamp
@@ -968,23 +1177,26 @@ function main() {
     const transparent = wantTransparent || job.transparent;
     const target = wantAll ? presetOutputPath(output, job.label) : output;
     const built = buildHtml({
-      imgDataUri: dataUri, imgW, imgH, preset, device, title, url, theme,
+      imgDataUri: dataUri, imgW, imgH, preset, device, browser, title, url, theme,
       bgCss: transparent ? 'transparent' : job.css,
       canvasW: canvas.width, canvasH: canvas.height,
       radius: radiusArg, inset, insetColor,
+      shadowCss, headline: strArg(args.headline), subcopy: strArg(args.subcopy),
+      copyH: copy.copyH, hpx: copy.hpx, spx: copy.spx,
+      bleedPx, tiltDeg, pdfPage: format === 'pdf', pad,
     });
 
     let res;
     try {
       res = renderFrame({
         chromium, html: built.html, output: target,
-        cssW: canvas.width, cssH: canvas.height, scale, transparent,
+        cssW: canvas.width, cssH: canvas.height, scale, transparent, format,
       });
     } catch (e) {
       fail(1, 'render/failed', `Chromium 截图失败: ${e.message}`);
     }
     if (res.reason === 'no-output') {
-      fail(1, 'output/missing', `Chromium 已退出但未产出可读的 PNG: ${target}（浏览器可能不可用，或输出路径不可写）`, [
+      fail(1, 'output/missing', `Chromium 已退出但未产出可读的 ${format.toUpperCase()}: ${target}（浏览器可能不可用，或输出路径不可写）`, [
         '确认 --chromium 指向真实可用的 Chrome/Chromium',
         '确认输出目录存在且可写',
       ]);
@@ -1017,18 +1229,30 @@ function main() {
 
   // 收口「请求未被完全兑现」的两种情形——都明确告知，不静默。
   const warnings = [];
+  if (typeof args.browser === 'string' && preset !== 'browser') {
+    warnings.push(`--browser ${browser} 仅对 preset=browser 生效，当前 preset=${preset} 已忽略`);
+  }
   if (wantAll && bgArg) {
     warnings.push(`--all 已指定，--bg ${bgArg} 被忽略（9 张已覆盖全部预设）`);
   }
   if (widthArg && outputs[0].width !== widthArg) {
     warnings.push(`--width ${widthArg} 未生效：只缩小不放大，当前 2x 画布宽仅 ${canvas.width * 2}px，实际输出 ${outputs[0].width}px`);
   }
+  if (format === 'pdf' && widthArg) {
+    warnings.push(`--width ${widthArg} 对矢量 PDF 无意义，已忽略（PDF 尺寸 = 画布 ${canvas.width}x${canvas.height} CSS px）`);
+  }
+  if (format === 'pdf' && (wantTransparent || bgArg === 'none' || bgArg === 'transparent')) {
+    warnings.push('PDF 打印会铺白底，透明背景不生效');
+  }
+  if (pdfRenamed) {
+    warnings.push(`--format pdf：输出路径扩展名已规范为 .pdf → ${output}`);
+  }
 
   for (const o of outputs) {
     log(`✅ ${o.path}  ${o.width}x${o.height}  ${Math.round(o.bytes / 1024)} KB`);
   }
   for (const w of warnings) log(`   ⚠ ${w}`);
-  log(`   preset=${preset}${preset === 'device' ? '/' + device : ''}  theme=${themeArg === 'auto' ? `auto->${theme}` : theme}  trim=${trimInfo}  bg=${variants.map((v) => v.label).join(',')}${inset > 0 ? `  inset=${inset}(${insetColor})` : ''}${ratioArg ? `  ratio=${ratioArg}` : ''}  scale=${scale}`);
+  log(`   preset=${preset}${preset === 'device' ? '/' + device : preset === 'browser' ? '/' + browser : ''}  theme=${themeArg === 'auto' ? `auto->${theme}` : theme}  trim=${trimInfo}  bg=${variants.map((v) => v.label).join(',')}${inset > 0 ? `  inset=${inset}(${insetColor})` : ''}${ratioArg ? `  ratio=${ratioArg}` : ''}  scale=${scale}`);
 
   if (wantJson) {
     emit({
@@ -1038,6 +1262,7 @@ function main() {
       input: path.resolve(input),
       preset,
       device: preset === 'device' ? device : null,
+      browser: preset === 'browser' ? browser : null,
       theme: { requested: themeArg, resolved: theme },
       trim: { requested: wantTrim, applied: Boolean(trimBox), detail: trimInfo },
       background: {
@@ -1048,6 +1273,15 @@ function main() {
       },
       inset: inset > 0 ? { width: inset, color: insetColor } : null,
       ratio: ratioArg || null,
+      format,
+      shadow: shadowArg || 'theme',
+      bleed: bleedPx || null,
+      tilt: tiltDeg || null,
+      copy: copy.copyH ? {
+        headline: strArg(args.headline) || null,
+        subcopy: strArg(args.subcopy) || null,
+        heightPx: copy.copyH,
+      } : null,
       padding: pad,
       scale,
       warnings,
@@ -1069,6 +1303,7 @@ if (require.main === module) {
 
 module.exports = {
   esc,
+  parseArgs,
   pngSize,
   decodePng,
   encodePng,
@@ -1078,8 +1313,12 @@ module.exports = {
   parseRatio,
   fitToRatio,
   resolveBackground,
+  resolveShadow,
+  copyLayout,
   edgeColor,
   presetOutputPath,
   GRADIENTS,
   RATIOS,
+  SHADOWS,
+  DEVICES,
 };

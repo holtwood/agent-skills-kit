@@ -14,8 +14,9 @@ const zlib = require('node:zlib');
 const pathJoin = require('node:path').join;
 const {
   esc, decodePng, encodePng, cropPng, computeTrimBox, detectTheme,
-  parseRatio, fitToRatio, resolveBackground, edgeColor, presetOutputPath,
-  GRADIENTS, RATIOS,
+  parseRatio, fitToRatio, resolveBackground, resolveShadow, copyLayout,
+  edgeColor, presetOutputPath, parseArgs,
+  GRADIENTS, RATIOS, SHADOWS, DEVICES,
 } = require('../scripts/frame.js');
 
 // ---------- 测试用最小 PNG 构造器（独立实现，不信任被测代码） ----------
@@ -250,4 +251,94 @@ test('预设数据完整：每个渐变都有深浅两套，每个比例都是�
   for (const [name, [w, h]] of Object.entries(RATIOS)) {
     assert.ok(w > 0 && h > 0, `${name} 比例非法`);
   }
+});
+
+test('DEVICES 设备表完整：Apple + Android 机型字段合法', () => {
+  const NOTCHES = new Set(['island', 'dot', 'punch', 'punch-rt', true, undefined]);
+  const BUTTONS = new Set(['iphone', 'galaxy', false, undefined]);
+  for (const name of ['iphone', 'ipad', 'macbook', 'galaxy', 'galaxy-flip', 'galaxy-fold']) {
+    const d = DEVICES[name];
+    assert.ok(d, `缺少设备 ${name}`);
+    assert.ok(d.screenW > 0 && d.bezel >= 0 && d.radius > 0 && d.screenRadius > 0, `${name} 尺寸字段非法`);
+    assert.ok(d.screenRadius < d.radius, `${name} 屏幕圆角必须小于机身圆角`);
+    assert.ok(NOTCHES.has(d.notch), `${name} notch 取值非法: ${d.notch}`);
+    assert.ok(BUTTONS.has(d.buttons), `${name} buttons 取值非法: ${d.buttons}`);
+  }
+  assert.equal(DEVICES['galaxy-fold'].hinge, true, 'Fold 需要铰链中缝');
+  assert.match(DEVICES.galaxy.notch, /^punch/, 'Galaxy 应为屏内打孔前摄');
+});
+
+// ---------- 商店比例 / 图片背景 / 阴影档位 / 文案层 ----------
+
+test('parseRatio 覆盖应用商店精确比例', () => {
+  assert.deepEqual(parseRatio('appstore-69'), [1320, 2868]);
+  assert.deepEqual(parseRatio('appstore-65'), [1284, 2778]);
+  assert.deepEqual(parseRatio('appstore-ipad'), [2064, 2752]);
+  assert.deepEqual(parseRatio('play-phone'), [1080, 1920]);
+  assert.deepEqual(parseRatio('play-feature'), [1024, 500]);
+  // 精确比例配合 --width 落到官方像素：1320 宽的画布等比缩到 1320 输出即 2868 高
+  const canvas = fitToRatio(1200, 2000, parseRatio('appstore-69'));
+  assert.equal(Math.round(canvas.height * (1320 / canvas.width)), 2868);
+});
+
+test('resolveBackground 支持 image: 文件背景', () => {
+  const os = require('node:os');
+  const fs = require('node:fs');
+  const tmp = pathJoin(os.tmpdir(), `shotframe-test-${process.pid}.png`);
+  fs.writeFileSync(tmp, buildPng(2, 2, 2, [Buffer.from([1, 2, 3, 4, 5, 6]), Buffer.from([7, 8, 9, 10, 11, 12])]));
+  try {
+    const r = resolveBackground(`image:${tmp}`, 'light', 135);
+    assert.ok(r, '存在的图片路径应解析成功');
+    assert.match(r.css, /^url\("data:image\/png;base64,/);
+    assert.match(r.css, /center\/cover no-repeat$/);
+    assert.equal(r.transparent, false);
+    // 前缀大小写不敏感
+    assert.ok(resolveBackground(`Image:${tmp}`, 'light', 135));
+  } finally {
+    fs.rmSync(tmp, { force: true });
+  }
+  // 不存在 / 不支持的扩展名 → null（由调用方报 config/unknown-background）
+  assert.equal(resolveBackground('image:/nonexistent/x.png', 'light', 135), null);
+  assert.equal(resolveBackground('image:/tmp/x.bmp', 'light', 135), null);
+});
+
+test('resolveShadow：默认跟随主题，none/soft/lifted 三档', () => {
+  assert.equal(resolveShadow('', 'light'), resolveShadow(null, 'light'), '未指定应一致');
+  assert.notEqual(resolveShadow('', 'light'), resolveShadow('', 'dark'), '主题默认投影深浅应不同');
+  assert.equal(resolveShadow('none', 'light'), 'none');
+  assert.equal(resolveShadow('none', 'dark'), 'none');
+  assert.notEqual(resolveShadow('soft', 'light'), resolveShadow('soft', 'dark'));
+  assert.notEqual(resolveShadow('soft', 'light'), resolveShadow('lifted', 'light'));
+  assert.equal(resolveShadow('huge', 'light'), null, '非法档位返回 null 由调用方报错');
+});
+
+test('copyLayout：无文案零占位，有标题按宽度取字号、超长收缩', () => {
+  assert.equal(copyLayout(1000, '', '').copyH, 0);
+  assert.equal(copyLayout(1000, null, null).copyH, 0);
+
+  const c = copyLayout(1200, '短标题', '');
+  assert.ok(c.copyH > 0 && c.hpx >= 28 && c.lines === 1);
+
+  const long = copyLayout(1200, '这是一个非常非常非常长的标题长到单行放不下必须收缩或者换行处理才行', '');
+  assert.ok(long.hpx < c.hpx || long.lines === 2, '超长标题应缩字号或换行');
+  assert.ok(long.lines <= 2, '最多 2 行');
+
+  const sub = copyLayout(1200, '', '只有副文案');
+  assert.ok(sub.copyH > 0 && sub.spx >= 18);
+});
+
+test('SHADOWS 三档齐全且深浅都有定义', () => {
+  for (const name of ['none', 'soft', 'lifted']) {
+    assert.ok(SHADOWS[name], `缺少阴影档位 ${name}`);
+    assert.ok(typeof SHADOWS[name].light === 'string' && typeof SHADOWS[name].dark === 'string');
+  }
+});
+
+test('parseArgs：--bleed 裸写为 true，带值为字符串，不吃下一个旗标', () => {
+  const a = parseArgs(['--input', 'in.png', '--bleed', '--json']);
+  assert.equal(a.bleed, true, '裸写 --bleed 应为 true（自动 10%）');
+  assert.equal(a.json, true, '--bleed 不应吞掉 --json');
+  const b = parseArgs(['--bleed', '160', '--output', 'o.png']);
+  assert.equal(b.bleed, '160');
+  assert.equal(b.output, 'o.png');
 });
