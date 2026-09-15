@@ -13,7 +13,6 @@ Agent Skills collection with Chinese documentation and trigger semantics — rea
 | --- | --- | --- |
 | [`wsl-capture`](./skills/wsl-capture/) | Screenshots in WSL | "take a screenshot / capture a web page / capture a window in WSL" |
 | [`shotframe`](./skills/shotframe/) | Screenshot framing (browser / macOS / device frames, auto light/dark theming) | "add a frame to this screenshot", "wrap it in an iPhone / MacBook bezel" |
-| [`archify`](./skills/archify/) | Architecture / workflow / sequence / dataflow / lifecycle diagrams (self-contained HTML + SVG, theming & export) | "draw a system architecture diagram", "turn this Mermaid into an interactive diagram" |
 | [`gh-pages`](./skills/gh-pages/) | GitHub Pages setup (multi-framework detection) | "enable GitHub Pages for this repo" |
 | [`gh-stars`](./skills/gh-stars/) | Star collection index site (Chinese categories + CI sync) | "turn my stars into a showcase page" |
 | [`project-hub`](./skills/project-hub/) | Repo navigation site (featured section + weekly audit) | "make a navigation page listing all my repos" |
@@ -28,6 +27,8 @@ Agent Skills collection with Chinese documentation and trigger semantics — rea
 
 ## Installation
 
+**macOS / Linux / WSL:**
+
 ```bash
 git clone https://github.com/holtwood/agent-skills-kit.git ~/agent-skills-kit
 cd ~/agent-skills-kit
@@ -39,13 +40,27 @@ cd ~/agent-skills-kit
 ./install.sh shotframe gh-pages
 ```
 
+**Windows (native PowerShell):**
+
+```powershell
+git clone https://github.com/holtwood/agent-skills-kit.git $HOME\agent-skills-kit
+cd $HOME\agent-skills-kit
+
+# Install all skills (uses directory junctions — no admin rights / Developer Mode needed)
+.\install.ps1
+
+# Or install selected skills
+.\install.ps1 shotframe gh-pages
+```
+
 > Want it for a specific project? Just copy the `skills/<name>/` directory into your project's `.opencode/skills/` or `.claude/skills/`.
 
 ### Requirements
 
-- **OS**: Linux / WSL (`wsl-capture` needs WSL + `powershell.exe`; macOS partially works with `coreutils`)
-- **bash ≥ 4.4** (`install.sh` uses `mapfile -d`; macOS users: install bash via Homebrew)
-- **Dependencies as needed**: screenshot skills need a system Chromium; GitHub skills need [gh CLI](https://cli.github.com/) logged in; generator skills need Python 3
+- **OS**: Linux / macOS / WSL (`wsl-capture` needs WSL + `powershell.exe`); native Windows installs via `install.ps1`
+- **bash ≥ 4.4** (`install.sh` uses `mapfile -d`; macOS users: install bash via Homebrew); Windows uses `install.ps1` (PowerShell ≥ 5.1)
+- **Node ≥ 18** (`shotframe`); bash-based scripts run on Windows under Git Bash / WSL
+- **Dependencies as needed**: screenshot skills need a system Chromium (auto-detected on Linux / macOS / Windows); GitHub skills need [gh CLI](https://cli.github.com/) logged in; generator skills need Python 3
 
 ## Quick start
 
@@ -54,10 +69,6 @@ cd ~/agent-skills-kit
 bash skills/wsl-capture/scripts/capture.sh browser https://example.com -o ~/shots/page.png
 node skills/shotframe/scripts/frame.js --input ~/shots/page.png --preset macos --output ~/shots/page-macos.png
 node skills/shotframe/scripts/frame.js --input ~/shots/app.png --preset device --device iphone --output ~/shots/app-iphone.png
-
-# Architecture diagram (JSON spec → validate → deliver as self-contained HTML)
-node skills/archify/bin/archify.mjs validate architecture skills/archify/examples/checkout-platform.base.architecture.json --quality showcase --json
-node skills/archify/bin/archify.mjs deliver architecture skills/archify/examples/checkout-platform.base.architecture.json docs/architecture.html --quality showcase --json
 
 # Star collection site (fetch → generate index → weekly CI sync)
 bash skills/gh-stars/scripts/fetch-stars.sh holtwood data/starred_full.json
@@ -73,16 +84,11 @@ bash skills/project-hub/scripts/setup-ci.sh .
 bash skills/gh-pages/scripts/setup-pages.sh holtwood/agent-skills-kit
 ```
 
-## Maintaining archify
+## Third-party skills worth watching
 
-archify is a third-party open-source skill ([tt-a1i/archify](https://github.com/tt-a1i/archify), MIT) that is updated frequently. To keep in sync:
+Third-party skills are only linked here — **nothing is vendored into this repo**, which avoids re-syncing and re-patching on every upstream release. See [`docs/RECOMMENDED-SKILLS.md`](./docs/RECOMMENDED-SKILLS.md).
 
-```bash
-./scripts/update-archify.sh --check   # check only whether a new version exists
-./scripts/update-archify.sh           # fetch official release asset → validate manifest fields & sha256 → run doctor → replace skills/archify/
-```
-
-The script validates manifest fields (channel/version/ref/sha256), verifies the sha256, guards against zip path traversal, refuses downgrades (skips when the local version is not lower), and checks for uncommitted local changes before replacing. The old version is covered by git history — no extra backup is kept; roll back with `git restore --source=<old commit> skills/archify`.
+Install third-party skills directly into `~/.claude/skills/` or `~/.config/opencode/skills/`; this repo's `install.sh` / `install.ps1` only manage the first-party skills under `skills/`.
 
 ## Adding a new skill
 

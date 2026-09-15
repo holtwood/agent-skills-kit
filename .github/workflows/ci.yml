@@ -16,7 +16,7 @@ jobs:
       - name: Shell 语法检查
         run: |
           set -euo pipefail
-          for f in install.sh scripts/*.sh skills/*/scripts/*.sh; do
+          for f in install.sh skills/*/scripts/*.sh; do
             bash -n "$f"
           done
 
@@ -32,6 +32,18 @@ jobs:
       - name: shotframe 逻辑单测（纯 Node，无 Chromium）
         run: node --test "skills/shotframe/test/*.test.cjs"
 
+      - name: shotframe 端到端渲染冒烟（系统 Chromium 可用时）
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          if ! node skills/shotframe/scripts/frame.js --input docs/screenshots/browser-example.png \
+               --preset macos --output "$tmp/framed.png" 2>"$tmp/err"; then
+            if grep -q "未找到 Chromium" "$tmp/err"; then echo "⚠ 未找到 Chromium，跳过渲染冒烟"; exit 0; fi
+            cat "$tmp/err"; exit 1
+          fi
+          test -s "$tmp/framed.png"
+          echo "rendered $(wc -c < "$tmp/framed.png") bytes"
+
       - name: install.sh 冒烟（临时目录，不触碰真实 HOME）
         run: |
           set -euo pipefail
@@ -40,6 +52,12 @@ jobs:
             ./install.sh shotframe gh-pages >/dev/null
           test -L "$tmp/opencode/shotframe" && test -L "$tmp/claude/shotframe"
           test -L "$tmp/opencode/gh-pages" && test -L "$tmp/claude/gh-pages"
+          # 无参 = 安装全部；装出来的数量应与 skills/ 下的目录数一致
+          tmp2="$(mktemp -d)"
+          OPENCODE_SKILLS_DIR="$tmp2/opencode" CLAUDE_SKILLS_DIR="$tmp2/claude" ./install.sh >/dev/null
+          expected="$(find skills -mindepth 1 -maxdepth 1 -type d | wc -l)"
+          test "$(ls -1 "$tmp2/opencode" | wc -l)" -eq "$expected"
+          test "$(ls -1 "$tmp2/claude" | wc -l)" -eq "$expected"
 
       - name: 生成器冒烟（真实 fixture）
         run: |
@@ -86,16 +104,76 @@ jobs:
           python3 skills/project-hub/scripts/gen-hub.py "$tmp/repos-str.json" "$tmp/hub-str.html" --title H --owner o
           grep -q 'class="card"' "$tmp/hub-str.html"
 
-      - name: archify 集成冒烟（vendored 副本可用性，不测上游逻辑）
+  # 跨平台回归：Windows / macOS 上验证 Node 工具链与安装器（ubuntu 由上面的 smoke 覆盖）
+  cross-platform:
+    name: cross-platform (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Node 语法检查
+        shell: bash
+        run: node --check skills/shotframe/scripts/frame.js
+
+      - name: shotframe 逻辑单测（纯 Node，无 Chromium）
+        shell: bash
+        # 不加引号，由 shell 展开 glob：Node 20 的 --test 自身不支持 glob 模式
+        run: node --test skills/shotframe/test/*.test.cjs
+
+      # 注意：Windows 的 Git Bash 里 mktemp 得到的是 MSYS 路径，原生 node.exe 解析结果不同，
+      # 因此这里统一用仓库内相对路径，保证 bash 与 node 指向同一位置。
+      - name: shotframe 端到端渲染冒烟（系统 Chromium 可用时）
+        shell: bash
         run: |
           set -euo pipefail
-          node --check skills/archify/bin/archify.mjs
-          node skills/archify/bin/archify.mjs doctor >/dev/null
-          node skills/archify/bin/archify.mjs validate architecture \
-            skills/archify/examples/checkout-platform.base.architecture.json \
-            --quality showcase --json >/dev/null
+          mkdir -p .ci-out
+          if ! node skills/shotframe/scripts/frame.js --input docs/screenshots/browser-example.png \
+               --preset macos --output .ci-out/framed.png 2>.ci-out/render.log; then
+            if grep -q "未找到 Chromium" .ci-out/render.log; then echo "⚠ 未找到 Chromium，跳过渲染冒烟"; exit 0; fi
+            cat .ci-out/render.log; exit 1
+          fi
+          test -s .ci-out/framed.png
+          echo "rendered $(wc -c < .ci-out/framed.png) bytes"
+
+      - name: "安装器冒烟（Windows: install.ps1 目录联接）"
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $tmp = Join-Path $env:RUNNER_TEMP 'ask-install'
+          $env:OPENCODE_SKILLS_DIR = Join-Path $tmp 'opencode'
+          $env:CLAUDE_SKILLS_DIR = Join-Path $tmp 'claude'
+          # 无参 = 安装全部（回归：PowerShell 里 @($null).Count 是 1 不是 0，曾导致无参直接报错）
+          ./install.ps1
+          $expected = (Get-ChildItem skills -Directory).Count
+          $got = (Get-ChildItem $env:OPENCODE_SKILLS_DIR).Count
+          if ($got -ne $expected) { throw "install.ps1 无参应装全部：期望 $expected，实际 $got" }
+          ./install.ps1 shotframe gh-pages
+          $ok = (Test-Path (Join-Path $env:OPENCODE_SKILLS_DIR 'shotframe\SKILL.md')) -and
+                (Test-Path (Join-Path $env:CLAUDE_SKILLS_DIR 'gh-pages\SKILL.md'))
+          if (-not $ok) { throw 'install.ps1 未正确创建目录联接' }
+          ./install.ps1  # 幂等复跑应全部跳过
+
+      - name: "安装器冒烟（macOS: install.sh 需要 bash ≥ 4.4）"
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          brew install bash
+          BASH="$(brew --prefix)/bin/bash"
           tmp="$(mktemp -d)"
-          node skills/archify/bin/archify.mjs deliver architecture \
-            skills/archify/examples/checkout-platform.base.architecture.json \
-            "$tmp/out.html" --quality showcase --json >/dev/null
-          test -s "$tmp/out.html"
+          OPENCODE_SKILLS_DIR="$tmp/opencode" CLAUDE_SKILLS_DIR="$tmp/claude" \
+            "$BASH" ./install.sh shotframe gh-pages
+          test -L "$tmp/opencode/shotframe" && test -L "$tmp/claude/gh-pages"
+          # 无参 = 安装全部
+          tmp2="$(mktemp -d)"
+          OPENCODE_SKILLS_DIR="$tmp2/opencode" CLAUDE_SKILLS_DIR="$tmp2/claude" "$BASH" ./install.sh >/dev/null
+          expected="$(find skills -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')"
+          test "$(ls -1 "$tmp2/opencode" | wc -l | tr -d ' ')" = "$expected"

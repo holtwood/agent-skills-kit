@@ -64,10 +64,16 @@ has_file() {
   gh api "repos/${REPO}/contents/$1" --jq '.type' >/dev/null 2>&1
 }
 
+# 跨平台 base64 解码：GNU coreutils 用 -d，BSD/macOS 用 -D，二者不通用。
+# python3 已是本脚本依赖，直接用它解码，规避 base64 参数差异。
+b64_decode() {
+  python3 -c 'import base64,sys; sys.stdout.buffer.write(base64.b64decode(sys.stdin.buffer.read()))'
+}
+
 # 读取仓库根目录的 package.json（取不到返回空）
 get_package_json() {
   gh api "repos/${REPO}/contents/package.json" --jq '.content' 2>/dev/null \
-    | base64 -d 2>/dev/null || true
+    | b64_decode 2>/dev/null || true
 }
 
 # 检查 package.json 的 scripts 里是否存在 $1

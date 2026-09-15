@@ -13,7 +13,6 @@
 | --- | --- | --- |
 | [`wsl-capture`](./skills/wsl-capture/) | WSL 环境截图 | 「帮我在 WSL 截个屏 / 截网页 / 截窗口」 |
 | [`shotframe`](./skills/shotframe/) | 截图套框（浏览器 / macOS / 设备框，自动适配深浅主题） | 「给截图加个边框」「套个 iPhone / MacBook 框」 |
-| [`archify`](./skills/archify/) | 架构 / 流程 / 时序 / 数据流 / 状态图（自包含 HTML + SVG，主题切换与导出） | 「画一张系统架构图」「把这个 Mermaid 转成可交互的图」 |
 | [`gh-pages`](./skills/gh-pages/) | GitHub Pages 配置（多框架探测） | 「帮我给 xxx 仓库开 GitHub Pages」 |
 | [`gh-stars`](./skills/gh-stars/) | Star 收藏索引站（中文分类 + CI 同步） | 「把我的收藏生成一个展示站」 |
 | [`project-hub`](./skills/project-hub/) | 仓库导航站（精选区 + 每周审计） | 「做一个列出我所有仓库的导航站」 |
@@ -28,6 +27,8 @@
 
 ## 安装
 
+**macOS / Linux / WSL：**
+
 ```bash
 git clone https://github.com/holtwood/agent-skills-kit.git ~/agent-skills-kit
 cd ~/agent-skills-kit
@@ -39,13 +40,27 @@ cd ~/agent-skills-kit
 ./install.sh shotframe gh-pages
 ```
 
+**Windows（原生 PowerShell）：**
+
+```powershell
+git clone https://github.com/holtwood/agent-skills-kit.git $HOME\agent-skills-kit
+cd $HOME\agent-skills-kit
+
+# 安装全部 skill（使用目录联接 junction，无需管理员权限 / 开发者模式）
+.\install.ps1
+
+# 或按需安装
+.\install.ps1 shotframe gh-pages
+```
+
 > 想给某个具体项目用？直接把对应 `skills/<name>/` 目录复制进项目的 `.opencode/skills/` 或 `.claude/skills/` 即可。
 
 ### 环境要求
 
-- **系统**：Linux / WSL（`wsl-capture` 需 WSL + `powershell.exe`；macOS 部分可用但需 `coreutils`）
-- **bash ≥ 4.4**（`install.sh` 使用 `mapfile -d`；macOS 请用 Homebrew 的 bash）
-- **依赖按需**：截图类需要系统 Chromium；GitHub 类需要 [gh CLI](https://cli.github.com/) 已登录；生成类需要 Python 3
+- **系统**：Linux / macOS / WSL（`wsl-capture` 需 WSL + `powershell.exe`）；Windows 原生用 `install.ps1` 安装
+- **bash ≥ 4.4**（`install.sh` 使用 `mapfile -d`；macOS 请用 Homebrew 的 bash）；Windows 走 `install.ps1`（PowerShell ≥ 5.1）
+- **Node ≥ 18**（`shotframe`）；bash 类脚本在 Windows 上可于 Git Bash / WSL 中运行
+- **依赖按需**：截图类需要系统 Chromium（Linux / macOS / Windows 自动探测）；GitHub 类需要 [gh CLI](https://cli.github.com/) 已登录；生成类需要 Python 3
 
 ## 快速上手
 
@@ -54,10 +69,6 @@ cd ~/agent-skills-kit
 bash skills/wsl-capture/scripts/capture.sh browser https://example.com -o ~/shots/page.png
 node skills/shotframe/scripts/frame.js --input ~/shots/page.png --preset macos --output ~/shots/page-macos.png
 node skills/shotframe/scripts/frame.js --input ~/shots/app.png --preset device --device iphone --output ~/shots/app-iphone.png
-
-# 架构图（用 JSON 规格描述 → 校验 → 交付为自包含 HTML）
-node skills/archify/bin/archify.mjs validate architecture skills/archify/examples/checkout-platform.base.architecture.json --quality showcase --json
-node skills/archify/bin/archify.mjs deliver architecture skills/archify/examples/checkout-platform.base.architecture.json docs/architecture.html --quality showcase --json
 
 # Star 收藏站（拉取 → 生成索引 → 配置每周 CI 同步）
 bash skills/gh-stars/scripts/fetch-stars.sh holtwood data/starred_full.json
@@ -73,16 +84,11 @@ bash skills/project-hub/scripts/setup-ci.sh .
 bash skills/gh-pages/scripts/setup-pages.sh holtwood/agent-skills-kit
 ```
 
-## 维护 archify
+## 值得关注的外部 Skills
 
-archify 是第三方开源 skill（[tt-a1i/archify](https://github.com/tt-a1i/archify)，MIT），官方更新频繁。跟随官方更新：
+第三方 skill 只在这里记录链接，**不 vendor 进本仓库**——省掉每次上游更新都要同步、打补丁的麻烦。清单见 [`docs/RECOMMENDED-SKILLS.md`](./docs/RECOMMENDED-SKILLS.md)。
 
-```bash
-./scripts/update-archify.sh --check   # 只检查是否有新版本
-./scripts/update-archify.sh           # 下载官方 release 资产 → 校验清单字段与 sha256 → 验证 doctor → 替换 skills/archify/
-```
-
-脚本内置：清单字段 cross-validation（channel/version/ref/sha256）、sha256 校验、zip 路径穿越防护、防降级（本地版本不低于官方最新版时跳过）、覆盖前检查未提交改动。旧版由 git 历史兜底，不另做备份；如需回滚用 `git restore --source=<旧提交> skills/archify`。
+安装第三方 skill 请直接装进 `~/.claude/skills/` 或 `~/.config/opencode/skills/`；本仓库的 `install.sh` / `install.ps1` 只管理 `skills/` 下的自研 skill。
 
 ## 新增 Skill
 

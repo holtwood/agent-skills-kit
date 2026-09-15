@@ -18,6 +18,7 @@ const os = require('os');
 const crypto = require('crypto');
 const zlib = require('zlib');
 const { execFileSync } = require('child_process');
+const { pathToFileURL } = require('url');
 
 // ---------- 参数解析 ----------
 const VALUE_FLAGS = new Set(['input', 'output', 'preset', 'device', 'title', 'url', 'theme', 'background', 'padding', 'chromium']);
@@ -253,24 +254,66 @@ function computeTrimBox(decoded) {
 }
 
 // ---------- Chromium 探测 ----------
-function findChromium(forced) {
-  if (forced && typeof forced === 'string' && fs.existsSync(forced)) return forced;
-  const candidates = [
-    process.env.SHOTFRAME_CHROMIUM,
-    process.env.CHROME_PATH,
-    ...globPlaywrightChromium(),
+const IS_WIN = process.platform === 'win32';
+const IS_MAC = process.platform === 'darwin';
+
+// 各平台常见的 Chromium 安装位置
+function platformChromiumPaths() {
+  if (IS_MAC) {
+    return [
+      '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+      '/Applications/Chromium.app/Contents/MacOS/Chromium',
+      '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
+      '/opt/homebrew/bin/chromium',
+      '/usr/local/bin/chromium',
+    ];
+  }
+  if (IS_WIN) {
+    const roots = [
+      process.env.PROGRAMFILES,
+      process.env['PROGRAMFILES(X86)'],
+      process.env.LOCALAPPDATA,
+    ].filter(Boolean);
+    const rel = [
+      path.join('Google', 'Chrome', 'Application', 'chrome.exe'),
+      path.join('Chromium', 'Application', 'chrome.exe'),
+      path.join('Microsoft', 'Edge', 'Application', 'msedge.exe'),
+    ];
+    const out = [];
+    for (const root of roots) for (const r of rel) out.push(path.join(root, r));
+    return out;
+  }
+  return [
     '/usr/bin/chromium',
     '/usr/bin/chromium-browser',
     '/usr/bin/google-chrome',
     '/usr/bin/google-chrome-stable',
     '/snap/bin/chromium',
   ];
+}
+
+// PATH 里按可执行文件名查找（Windows 需带 .exe 后缀）
+function chromiumCommandNames() {
+  return IS_WIN
+    ? ['chrome.exe', 'chromium.exe', 'msedge.exe']
+    : ['chromium', 'chromium-browser', 'google-chrome', 'google-chrome-stable', 'chrome'];
+}
+
+function findChromium(forced) {
+  if (forced && typeof forced === 'string' && fs.existsSync(forced)) return forced;
+  const candidates = [
+    process.env.SHOTFRAME_CHROMIUM,
+    process.env.CHROME_PATH,
+    ...globPlaywrightChromium(),
+    ...platformChromiumPaths(),
+  ];
   for (const c of candidates) {
     if (c && fs.existsSync(c)) return c;
   }
-  // PATH 里找
-  for (const dir of (process.env.PATH || '').split(':')) {
-    for (const name of ['chromium', 'chromium-browser', 'google-chrome', 'chrome']) {
+  // PATH 里找（用 path.delimiter：Windows 为 ';'，其余为 ':'）
+  for (const dir of (process.env.PATH || '').split(path.delimiter)) {
+    if (!dir) continue;
+    for (const name of chromiumCommandNames()) {
       const p = path.join(dir, name);
       if (fs.existsSync(p)) return p;
     }
@@ -278,18 +321,55 @@ function findChromium(forced) {
   return null;
 }
 
+// Playwright 下载的 Chromium 缓存目录（各平台不同）
+function playwrightCacheDirs() {
+  if (IS_WIN) {
+    const base = process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local');
+    return [path.join(base, 'ms-playwright')];
+  }
+  if (IS_MAC) {
+    return [path.join(os.homedir(), 'Library', 'Caches', 'ms-playwright')];
+  }
+  const xdg = process.env.XDG_CACHE_HOME;
+  const base = xdg && path.isAbsolute(xdg) ? xdg : path.join(os.homedir(), '.cache');
+  return [path.join(base, 'ms-playwright')];
+}
+
+// 缓存内可执行文件的相对布局（各平台不同）
+function playwrightLayouts() {
+  if (IS_WIN) {
+    return [
+      { dir: 'chrome-win64', exe: 'chrome.exe' },
+      { dir: 'chrome-win', exe: 'chrome.exe' },
+    ];
+  }
+  if (IS_MAC) {
+    return [{ dir: 'chrome-mac', exe: path.join('Chromium.app', 'Contents', 'MacOS', 'Chromium') }];
+  }
+  return [
+    { dir: 'chrome-linux64', exe: 'chrome' },
+    { dir: 'chrome-linux', exe: 'chrome' },
+  ];
+}
+
 function globPlaywrightChromium() {
-  const cache = path.join(os.homedir(), '.cache', 'ms-playwright');
-  let out = [];
-  try {
-    for (const ver of fs.readdirSync(cache)) {
+  const layouts = playwrightLayouts();
+  const out = [];
+  for (const cache of playwrightCacheDirs()) {
+    let versions;
+    try {
+      versions = fs.readdirSync(cache);
+    } catch (_) {
+      continue; // cache 不存在时忽略
+    }
+    for (const ver of versions) {
       if (!ver.startsWith('chromium-')) continue;
-      for (const layout of ['chrome-linux64', 'chrome-linux']) {
-        const exe = path.join(cache, ver, layout, 'chrome');
-        if (fs.existsSync(exe)) { out.push(exe); break; }
+      for (const { dir, exe } of layouts) {
+        const p = path.join(cache, ver, dir, exe);
+        if (fs.existsSync(p)) { out.push(p); break; }
       }
     }
-  } catch (_) { /* cache 不存在时忽略 */ }
+  }
   return out;
 }
 
@@ -581,7 +661,7 @@ function main() {
       '--force-device-scale-factor=2',
       `--window-size=${winW},${winH}`,
       `--screenshot=${path.resolve(output)}`,
-      `file://${tmpHtml}`,
+      pathToFileURL(tmpHtml).href,
     ], { stdio: 'ignore', timeout: 60000 });
   };
 
