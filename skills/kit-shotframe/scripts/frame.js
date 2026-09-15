@@ -324,7 +324,7 @@ function findChromium(forced) {
     process.env.KIT_SHOTFRAME_CHROMIUM,
     process.env.CHROME_PATH,
     ...globPlaywrightChromium(),
-    ...kitWslCaptureChromium(),
+    ...kitCaptureChromium(),
     ...platformChromiumPaths(),
   ];
   for (const c of candidates) {
@@ -393,12 +393,13 @@ function globPlaywrightChromium() {
   return out;
 }
 
-// kit-wsl-capture 自举下载的 chrome-headless-shell 缓存（两个 skill 共用，仅 Linux/WSL 会存在）
-function kitWslCaptureChromium() {
-  if (IS_WIN || IS_MAC) return [];
+// kit-capture 自举下载的 chrome-headless-shell 缓存（两个 skill 共用，各平台都可能存在）
+function kitCaptureChromium() {
   const xdg = process.env.XDG_CACHE_HOME;
   const base = xdg && path.isAbsolute(xdg) ? xdg : path.join(os.homedir(), '.cache');
-  const p = path.join(base, 'kit-wsl-capture', 'chrome-headless-shell', 'chrome-headless-shell-linux64', 'chrome-headless-shell');
+  const flavor = IS_WIN ? 'win64' : IS_MAC ? (process.arch === 'arm64' ? 'mac-arm64' : 'mac-x64') : 'linux64';
+  const exe = IS_WIN ? 'chrome-headless-shell.exe' : 'chrome-headless-shell';
+  const p = path.join(base, 'kit-capture', 'chrome-headless-shell', `chrome-headless-shell-${flavor}`, exe);
   return fs.existsSync(p) ? [p] : [];
 }
 
@@ -837,7 +838,7 @@ function renderFrame({ chromium, html, output, cssW, cssH, scale, transparent, f
 
   const expectedW = Math.round(cssW * scale);
   const expectedH = Math.round(cssH * scale);
-  // chrome-headless-shell（kit-wsl-capture 自举下载的无头壳）本身就是无头实现，
+  // chrome-headless-shell（kit-capture 自举下载的无头壳）本身就是无头实现，
   // 只认旧版 headless 开关，传 --headless=new 反而不兼容
   const isHeadlessShell = /headless-shell/i.test(path.basename(chromium));
 

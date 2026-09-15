@@ -27,10 +27,20 @@ jobs:
           python3 skills/kit-project-hub/scripts/gen-hub.py --help >/dev/null
 
       - name: Node 语法检查
-        run: node --check skills/kit-shotframe/scripts/frame.js
+        run: |
+          node --check skills/kit-shotframe/scripts/frame.js
+          node --check skills/kit-capture/scripts/interact.cjs
 
       - name: kit-shotframe 逻辑单测（纯 Node，无 Chromium）
         run: node --test "skills/kit-shotframe/test/*.test.cjs"
+
+      - name: kit-capture 入口冒烟（模式分发 + 参数校验，无外部依赖）
+        run: |
+          set +e
+          bash skills/kit-capture/scripts/capture.sh >/dev/null 2>&1; test $? -eq 2
+          bash skills/kit-capture/scripts/capture.sh bogus >/dev/null 2>&1; test $? -eq 2
+          bash skills/kit-capture/scripts/capture.sh browser >/dev/null 2>&1; test $? -eq 2
+          echo "kit-capture 入口检查通过"
 
       - name: kit-shotframe 新参数契约（纯 Node，无 Chromium）
         run: |
@@ -186,7 +196,9 @@ jobs:
 
       - name: Node 语法检查
         shell: bash
-        run: node --check skills/kit-shotframe/scripts/frame.js
+        run: |
+          node --check skills/kit-shotframe/scripts/frame.js
+          node --check skills/kit-capture/scripts/interact.cjs
 
       - name: kit-shotframe 逻辑单测（纯 Node，无 Chromium）
         shell: bash

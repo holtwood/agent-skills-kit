@@ -41,7 +41,7 @@
 
 - 链接：[WholeNightCoding/web-screenshot](https://github.com/WholeNightCoding/web-screenshot)
 - 用途：自举式网页截图——首跑自动装 puppeteer-core + chrome-headless-shell 到 `~/.cache`，剧本化捕获（元素截图/点击后再截）
-- 备注：kit-wsl-capture 的自举下载与 interact 模式参考了它
+- 备注：kit-capture 的自举下载与 interact 模式参考了它
 
 <!-- 继续往下加：复制上面的小节，改链接 / 用途 / 许可 / 备注即可 -->
 

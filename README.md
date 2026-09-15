@@ -8,7 +8,7 @@
 
 | Skill | 干什么 |
 | --- | --- |
-| [`kit-wsl-capture`](./skills/kit-wsl-capture/) | WSL 截图：桌面 / 窗口 / 网页 / 剪贴板，多后端自动降级；`interact` 模式可点按钮、等元素、截指定元素 |
+| [`kit-capture`](./skills/kit-capture/) | 跨平台截图（Win/macOS/Linux/WSL）：桌面 / 窗口 / 网页 / 剪贴板，多后端自动降级；`interact` 模式可点按钮、等元素、截指定元素 |
 | [`kit-shotframe`](./skills/kit-shotframe/) | 截图套壳美化：浏览器 / macOS / iPhone / Galaxy 等框，社媒与应用商店精确画布，文案层，矢量 PDF |
 | [`kit-gh-pages`](./skills/kit-gh-pages/) | GitHub Pages 一键配置，自动探测 Vite / Hugo / VitePress / Jekyll |
 | [`kit-gh-stars`](./skills/kit-gh-stars/) | GitHub 收藏 → 中文分类索引站，配每周 CI 同步 |
@@ -25,14 +25,14 @@ npx skills add holtwood/agent-skills-kit   # 或用 skills.sh
 
 也可手动把 `skills/<name>/` 整个拷进 `.opencode/skills/` 或 `.claude/skills/`。
 
-依赖：`kit-wsl-capture` 需 WSL + `powershell.exe`；`kit-shotframe` 需 Node ≥ 18 + Chromium（找不到会自动下载 chrome-headless-shell）；GitHub 类需已登录的 [gh CLI](https://cli.github.com/)。
+依赖：`kit-capture` 在 Windows 上需 Git Bash / MSYS2 环境，桌面/窗口/剪贴板模式在 Windows 与 WSL 下走 `powershell.exe`；`kit-shotframe` 需 Node ≥ 18 + Chromium（找不到会自动下载 chrome-headless-shell）；GitHub 类需已登录的 [gh CLI](https://cli.github.com/)。
 
 ## 用法
 
 每个 skill 的 `SKILL.md` 即完整文档。典型链路——截网页 → 套框出商店图：
 
 ```bash
-bash skills/kit-wsl-capture/scripts/capture.sh browser https://example.com -o page.png
+bash skills/kit-capture/scripts/capture.sh browser https://example.com -o page.png
 node skills/kit-shotframe/scripts/frame.js --input page.png --preset device --device galaxy \
   --ratio appstore-69 --width 1320 --headline "大字标题" --bleed -o store-01.png
 ```

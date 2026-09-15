@@ -1,0 +1,7 @@
+# 跨平台仓库统一 LF：shell 脚本被提交成 CRLF 会在 Linux/macOS 的 bash 下直接报错
+* text=auto
+*.sh   text eol=lf
+*.bash text eol=lf
+*.cjs  text eol=lf
+*.js   text eol=lf
+*.py   text eol=lf
