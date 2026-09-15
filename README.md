@@ -12,7 +12,7 @@
 | Skill | 能力 | 场景 |
 | --- | --- | --- |
 | [`wsl-capture`](./skills/wsl-capture/) | WSL 环境截图 | 「帮我在 WSL 截个屏 / 截网页 / 截窗口」 |
-| [`shotframe`](./skills/shotframe/) | 截图套框（浏览器 / macOS / 设备框，自动适配深浅主题） | 「给截图加个边框」「套个 iPhone / MacBook 框」 |
+| [`shotframe`](./skills/shotframe/) | 截图套框（浏览器 / macOS / 设备框；渐变背景、社媒比例 OG·X·Instagram、边缘色衬边、透明底，自动适配深浅主题） | 「给截图加个边框」「套个 iPhone / MacBook 框」「做成 OG 分享图」 |
 | [`gh-pages`](./skills/gh-pages/) | GitHub Pages 配置（多框架探测） | 「帮我给 xxx 仓库开 GitHub Pages」 |
 | [`gh-stars`](./skills/gh-stars/) | Star 收藏索引站（中文分类 + CI 同步） | 「把我的收藏生成一个展示站」 |
 | [`project-hub`](./skills/project-hub/) | 仓库导航站（精选区 + 每周审计） | 「做一个列出我所有仓库的导航站」 |
@@ -69,6 +69,10 @@ cd $HOME\agent-skills-kit
 bash skills/wsl-capture/scripts/capture.sh browser https://example.com -o ~/shots/page.png
 node skills/shotframe/scripts/frame.js --input ~/shots/page.png --preset macos --output ~/shots/page-macos.png
 node skills/shotframe/scripts/frame.js --input ~/shots/app.png --preset device --device iphone --output ~/shots/app-iphone.png
+
+# 渐变背景 + 社媒比例（OG 图 1.91:1，宽 1200）；--list 可列出全部预设
+node skills/shotframe/scripts/frame.js --input ~/shots/page.png --preset browser \
+  --bg aurora --ratio og --width 1200 --output ~/shots/og.png
 
 # Star 收藏站（拉取 → 生成索引 → 配置每周 CI 同步）
 bash skills/gh-stars/scripts/fetch-stars.sh holtwood data/starred_full.json

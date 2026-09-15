@@ -12,7 +12,7 @@ Agent Skills collection with Chinese documentation and trigger semantics — rea
 | Skill | Capability | When to use |
 | --- | --- | --- |
 | [`wsl-capture`](./skills/wsl-capture/) | Screenshots in WSL | "take a screenshot / capture a web page / capture a window in WSL" |
-| [`shotframe`](./skills/shotframe/) | Screenshot framing (browser / macOS / device frames, auto light/dark theming) | "add a frame to this screenshot", "wrap it in an iPhone / MacBook bezel" |
+| [`shotframe`](./skills/shotframe/) | Screenshot framing (browser / macOS / device frames; gradient backdrops, social ratios OG·X·Instagram, edge-color inset, transparent output, auto light/dark theming) | "add a frame to this screenshot", "wrap it in an iPhone / MacBook bezel", "make an OG share image" |
 | [`gh-pages`](./skills/gh-pages/) | GitHub Pages setup (multi-framework detection) | "enable GitHub Pages for this repo" |
 | [`gh-stars`](./skills/gh-stars/) | Star collection index site (Chinese categories + CI sync) | "turn my stars into a showcase page" |
 | [`project-hub`](./skills/project-hub/) | Repo navigation site (featured section + weekly audit) | "make a navigation page listing all my repos" |
@@ -69,6 +69,10 @@ cd $HOME\agent-skills-kit
 bash skills/wsl-capture/scripts/capture.sh browser https://example.com -o ~/shots/page.png
 node skills/shotframe/scripts/frame.js --input ~/shots/page.png --preset macos --output ~/shots/page-macos.png
 node skills/shotframe/scripts/frame.js --input ~/shots/app.png --preset device --device iphone --output ~/shots/app-iphone.png
+
+# Gradient backdrop + social ratio (OG 1.91:1 at width 1200); --list prints every preset
+node skills/shotframe/scripts/frame.js --input ~/shots/page.png --preset browser \
+  --bg aurora --ratio og --width 1200 --output ~/shots/og.png
 
 # Star collection site (fetch → generate index → weekly CI sync)
 bash skills/gh-stars/scripts/fetch-stars.sh holtwood data/starred_full.json
