@@ -13,6 +13,8 @@
 | [`kit-gh-pages`](./skills/kit-gh-pages/) | One-command GitHub Pages setup, auto-detects Vite / Hugo / VitePress / Jekyll |
 | [`kit-gh-stars`](./skills/kit-gh-stars/) | GitHub stars → categorized index site (Chinese categories) with weekly CI sync |
 | [`kit-project-hub`](./skills/kit-project-hub/) | Your repos → navigation site, featured section + weekly audit |
+| [`kit-wechat-miniapp-ui-optimizer`](./skills/kit-wechat-miniapp-ui-optimizer/) | Native WeChat mini-program UI audit: WXML/WXSS, pages/components, themes, safe areas, assets, and states |
+| [`kit-wechat-minigame-ui-optimizer`](./skills/kit-wechat-minigame-ui-optimizer/) | WeChat minigame Canvas UI audit: HUD, touch hit areas, resolution scaling, sprites, states, and frame-rate clues |
 
 ## Install
 
