@@ -1,86 +1,83 @@
 #!/usr/bin/env bash
-#
-# kit-gh-stars — 写入「每周自动同步」GitHub Actions workflow
-#
-# 用法:
-#   setup-ci.sh [目标仓库目录] [--branch main]
-#
-# 作用:
-#   1. 把本 skill 的 scripts/ 复制到 <目标仓库>/skills/kit-gh-stars/（保证 skill 自治、可被 workflow 调用）
-#   2. 写入 .github/workflows/sync-stars.yml：每周拉取 Star → 生成索引 → 有变更则自动提交推送
-#
+# Generate a local scheduled workflow; preserve existing workflows unless --force.
 set -euo pipefail
-
-TARGET="${1:-$(pwd)}"
+TARGET=""
 BRANCH=""
+FORCE=0
+usage() { echo '用法: setup-ci.sh [项目目录] [--branch NAME] [--force]'; }
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    -h|--help) usage; exit 0 ;;
+    --force) FORCE=1; shift ;;
     --branch)
-      [[ $# -ge 2 ]] || { echo "✗ --branch 需要一个分支名参数" >&2; exit 2; }
+      [[ $# -ge 2 && -n "$2" && "$2" != --* ]] || { echo '✗ --branch 缺少分支名' >&2; exit 2; }
       BRANCH="$2"; shift 2 ;;
-    -h|--help) echo "用法: setup-ci.sh [目标仓库目录] [--branch main]"; exit 0 ;;
-    *) shift ;;
+    -*) echo "✗ 未知参数: $1" >&2; exit 2 ;;
+    *) [[ -z "$TARGET" ]] || { usage >&2; exit 2; }; TARGET="$1"; shift ;;
   esac
 done
-
-# 未显式指定时自动探测默认分支（master 默认分支的仓库不再硬编码 main 导致每周同步推送失败）
-# 注意：命令替换必须带 || true，否则无 origin remote / 无提交时 git 非零退出会被 set -e 吞掉
-if [[ -z "${BRANCH}" && -d "${TARGET}/.git" ]] && command -v git >/dev/null 2>&1; then
-  BRANCH="$(git -C "${TARGET}" symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || true)"
+TARGET="${TARGET:-$(pwd)}"
+[[ -d "$TARGET" ]] || { echo "✗ 目标目录不存在: $TARGET" >&2; exit 2; }
+command -v git >/dev/null || { echo '✗ 需要 git' >&2; exit 1; }
+command -v python3 >/dev/null || { echo '✗ 需要 Python 3' >&2; exit 1; }
+if [[ -z "$BRANCH" ]]; then
+  BRANCH="$(git -C "$TARGET" symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || true)"
   BRANCH="${BRANCH#origin/}"
 fi
-if [[ -z "${BRANCH}" && -d "${TARGET}/.git" ]] && command -v git >/dev/null 2>&1; then
-  BRANCH="$(git -C "${TARGET}" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
-fi
-[[ "${BRANCH}" == "HEAD" ]] && BRANCH=""
+if [[ -z "$BRANCH" ]]; then BRANCH="$(git -C "$TARGET" symbolic-ref --short HEAD 2>/dev/null || true)"; fi
 BRANCH="${BRANCH:-main}"
-
-[[ -d "${TARGET}/.git" || -d "${TARGET}" ]] || { echo "✗ 目标目录不存在: ${TARGET}" >&2; exit 1; }
-
+git check-ref-format --branch "$BRANCH" >/dev/null || { echo '✗ 分支名不合法' >&2; exit 2; }
+WORKFLOW="$TARGET/.github/workflows/sync-stars.yml"
+if [[ -e "$WORKFLOW" && "$FORCE" -eq 0 ]]; then
+  echo "· 保留已有 workflow: ${WORKFLOW}（明确需要覆盖时使用 --force）"
+  exit 0
+fi
+BRANCH_YAML="$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1]))' "$BRANCH")"
 SKILL_SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-DEST="${TARGET}/skills/kit-gh-stars"
-mkdir -p "${DEST}/scripts"
-# 排除 __pycache__，仅复制脚本
-tar cf - --exclude='__pycache__' -C "${SKILL_SRC}" scripts | tar xf - -C "${DEST}"
-mkdir -p "${TARGET}/.github/workflows" "${TARGET}/data" "${TARGET}/docs"
-
-cat > "${TARGET}/.github/workflows/sync-stars.yml" <<EOF
-name: Sync kit-gh-stars
+DEST="$TARGET/skills/kit-gh-stars/scripts"
+mkdir -p "$DEST" "$TARGET/.github/workflows" "$TARGET/data" "$TARGET/docs"
+if [[ "$(cd "$DEST" && pwd)" != "$SKILL_SRC/scripts" ]]; then
+  cp "$SKILL_SRC"/scripts/*.sh "$SKILL_SRC"/scripts/*.py "$DEST/"
+fi
+cat > "$WORKFLOW" <<EOF
+name: Update kit-gh-stars
 on:
   schedule:
-    - cron: "0 2 * * 1"   # 每周一 02:00 UTC
-  workflow_dispatch:       # 支持手动触发
+    - cron: "0 2 * * 1"
+  workflow_dispatch:
 permissions:
   contents: write
+concurrency:
+  group: sync-\${{ github.ref }}
+  cancel-in-progress: false
 jobs:
   sync:
     runs-on: ubuntu-latest
+    env:
+      TARGET_BRANCH: ${BRANCH_YAML}
     steps:
       - uses: actions/checkout@v4
-      - name: 拉取 Star 列表并生成索引站
+        with:
+          ref: ${BRANCH_YAML}
+      - name: 更新数据与页面
         env:
           GH_TOKEN: \${{ secrets.GITHUB_TOKEN }}
-          # 仓库在组织名下或要展示他人收藏时，在仓库 Settings → Variables 设置 STARS_OWNER
           OWNER: \${{ vars.STARS_OWNER || github.repository_owner }}
         run: |
           set -euo pipefail
           bash skills/kit-gh-stars/scripts/fetch-stars.sh "\${OWNER}" data/starred_full.json
-          python3 skills/kit-gh-stars/scripts/gen-index.py data/starred_full.json docs/index.html --owner "\${OWNER}"
+          args=()
+          if [[ -f data/desc_zh.json ]]; then args+=(--desc-zh data/desc_zh.json); fi
+          python3 skills/kit-gh-stars/scripts/gen-index.py data/starred_full.json docs/index.html --owner "\${OWNER}" "\${args[@]}"
       - name: 有更新则提交推送
         run: |
+          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add data docs
-          if git diff --cached --quiet; then
-            echo "ℹ 无变更，跳过提交"
-          else
-            git commit -m "chore: 同步 Star 收藏 \$(date -u +%F)"
-            git push origin "${BRANCH}"
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: update kit-gh-stars"
+            git push origin "HEAD:\${TARGET_BRANCH}"
           fi
 EOF
-
-echo "✅ 已写入 ${TARGET}/.github/workflows/sync-stars.yml"
-echo "   skill 脚本已复制到 ${DEST}/"
-echo "   默认拉取仓库 owner 的 Star；仓库在组织名下或要展示他人收藏时，"
-echo "   请在仓库 Settings → Secrets and variables → Actions → Variables 添加 STARS_OWNER"
-echo "   （请在仓库 Settings → Actions 确认已允许 GITHUB_TOKEN 写权限，或将默认分支改为 ${BRANCH}）"
+echo "✅ 已写入 ${WORKFLOW}（账号变量 STARS_OWNER，分支 ${BRANCH}）"

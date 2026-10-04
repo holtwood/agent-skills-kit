@@ -20,6 +20,7 @@ case "${1:-}" in
   "") echo "✗ 缺少参数：<含 cover.html 的文章目录>"; usage 2 >&2 ;;
   --*) echo "✗ 未知参数 $1"; usage 2 >&2 ;;
 esac
+[[ $# -eq 1 ]] || { echo "✗ 多余参数" >&2; exit 2; }
 DIR="$1"
 [ -d "$DIR" ] || { echo "✗ 目录不存在: $DIR"; exit 2; }
 [ -f "$DIR/cover.html" ] || { echo "✗ 未找到 $DIR/cover.html（模板在 skill 的 assets/cover.html，先复制过去改）"; exit 1; }
@@ -39,11 +40,22 @@ fi
 command -v python3 >/dev/null || { echo "✗ 未找到 python3"; exit 1; }
 python3 -c "import PIL" 2>/dev/null || { echo "✗ 缺 Pillow: pip3 install Pillow"; exit 1; }
 
-# ---- 素材预检：cover.html 引用的本地图片必须存在 ----
-MISSING=$(grep -o 'src="img/[^"]*"' "$DIR/cover.html" | sed 's/src="//;s/"//' | while read -r f; do
-  [ -f "$DIR/$f" ] || echo "$f"
-done)
-[ -z "$MISSING" ] || { echo "✗ cover.html 引用的图片不存在: $MISSING"; exit 1; }
+# ---- 本地素材预检：识别单双引号与 URL 编码路径 ----
+python3 - "$DIR/cover.html" <<'PYIMG'
+from html.parser import HTMLParser
+from pathlib import Path
+from urllib.parse import urlsplit, unquote
+import sys
+p = Path(sys.argv[1])
+class Images(HTMLParser):
+    def handle_starttag(self, tag, attrs):
+        if tag == 'img':
+            src = dict(attrs).get('src', '')
+            uri = urlsplit(src)
+            if not src or (not uri.scheme and not uri.netloc and not (p.parent / unquote(uri.path)).is_file()):
+                sys.exit(f"✗ cover.html 图片不存在: {src}")
+Images().feed(p.read_text(encoding='utf-8'))
+PYIMG
 
 # ---- 占位符扫描：源码级，覆盖 style / 属性 / 正文（DOM innerText 看不到 <style>），排除说明注释 ----
 python3 - "$DIR/cover.html" <<'PY'
@@ -57,9 +69,15 @@ if found:
 PY
 
 ABS_DIR="$(cd "$DIR" && pwd)"
+CHECK_BASE="$(mktemp "$ABS_DIR/.wf-check.XXXXXX")"
+CHECK_FILE="$CHECK_BASE.html"
+mv "$CHECK_BASE" "$CHECK_FILE"
+DUMP_FILE="$(mktemp "$ABS_DIR/.wf-dump.XXXXXX")"
+FULL_FILE="$(mktemp "$ABS_DIR/.wf-full.XXXXXX")"
+trap 'rm -f "$CHECK_FILE" "$DUMP_FILE" "$FULL_FILE"' EXIT
 
 # ---- 布局实测：注入测量脚本，dump-dom 取回 getBoundingClientRect / 图片加载 / 占位符 ----
-python3 - "$ABS_DIR" <<'PY'
+python3 - "$ABS_DIR" "$CHECK_FILE" <<'PY'
 import pathlib, sys
 d = pathlib.Path(sys.argv[1])
 t = (d / "cover.html").read_text(encoding="utf-8")
@@ -75,14 +93,14 @@ inject = (
     "});\n</script>\n"
 )
 low = t.lower()
-(d / ".wf-check.html").write_text(t.replace("</body>", inject + "</body>") if "</body>" in low else t + inject,
+import re
+pathlib.Path(sys.argv[2]).write_text(re.sub(r"</body>", lambda m: inject + m.group(0), t, count=1, flags=re.I) if "</body>" in low else t + inject,
                                   encoding="utf-8")
 PY
 DUMP=$("$CHROME" --headless=new --disable-gpu --dump-dom --virtual-time-budget=10000 \
-       "file://$ABS_DIR/.wf-check.html" 2>/dev/null || true)
-rm -f "$ABS_DIR/.wf-check.html"
-printf '%s' "$DUMP" > "$ABS_DIR/.wf-dump.html"
-python3 - "$ABS_DIR/.wf-dump.html" <<'PY'
+       "file://$CHECK_FILE" 2>/dev/null || true)
+printf '%s' "$DUMP" > "$DUMP_FILE"
+python3 - "$DUMP_FILE" <<'PY'
 import json, re, sys, pathlib
 dump = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
 m = re.search(r'<pre id="wf-layout"[^>]*>(.*?)</pre>', dump, re.S)
@@ -103,23 +121,21 @@ if bad:
     sys.exit(1)
 print("✅ 布局实测通过: 头图 1800×766 / 方形 1000×1000@774 / 图片全部加载")
 PY
-rm -f "$ABS_DIR/.wf-dump.html"
 
 # ---- 渲染与裁切（窗口尺寸检查保留作辅助；真正的布局信任来自上面的 DOM 实测） ----
 "$CHROME" --headless=new --disable-gpu --hide-scrollbars \
-  --screenshot="$ABS_DIR/cover-full.png" --window-size=1800,1780 \
+  --screenshot="$FULL_FILE" --window-size=1800,1780 \
   "file://$ABS_DIR/cover.html" 2>/dev/null
 
-python3 - "$ABS_DIR" <<'PY'
+python3 - "$ABS_DIR" "$FULL_FILE" <<'PY'
 import sys
 from PIL import Image
 d = sys.argv[1]
-im = Image.open(f"{d}/cover-full.png")
+im = Image.open(sys.argv[2])
 if im.size != (1800, 1780):
     sys.exit(f"✗ 截图尺寸 {im.size} != (1800,1780)，渲染环境异常")
 im.crop((0, 0, 1800, 766)).save(f"{d}/img/cover.png")
 im.crop((0, 774, 1000, 1774)).resize((500, 500), Image.LANCZOS).save(f"{d}/img/cover-square.png")
 PY
 
-rm -f "$ABS_DIR/cover-full.png"
 echo "✅ 头图: $DIR/img/cover.png (1800x766) | 次图: $DIR/img/cover-square.png (500x500)"

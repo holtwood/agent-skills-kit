@@ -62,9 +62,9 @@ try {
       const t = i < 0 ? act : act.slice(0, i);
       const v = i < 0 ? '' : act.slice(i + 1);
       if (t === 'click') await page.click(v);
-      else if (t === 'wait') await new Promise((r) => setTimeout(r, parseInt(v, 10) || 1000));
+      else if (t === 'wait') await new Promise((r) => setTimeout(r, Number(v)));
       else if (t === 'waitfor') await page.waitForSelector(v, { timeout: 15000 });
-      else if (t === 'scroll') await page.evaluate((y) => window.scrollBy(0, parseInt(y, 10) || 600), v);
+      else if (t === 'scroll') await page.evaluate((y) => window.scrollBy(0, Number(y)), v);
       else throw new Error(`未知动作: ${act}`);
     }
     if (a.selector) {

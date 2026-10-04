@@ -9,6 +9,7 @@ import argparse
 import html
 import json
 import sys
+from urllib.parse import urlsplit
 
 def esc(s):
     return html.escape(str(s) if s is not None else '', quote=True)
@@ -20,12 +21,26 @@ def num_stars(v):
     except (TypeError, ValueError):
         return 0
 
+def safe_url(value, fallback):
+    if isinstance(value, str):
+        try:
+            uri = urlsplit(value)
+            if uri.scheme in {'https', 'http'} and uri.netloc:
+                return value
+        except ValueError:
+            pass
+    return fallback
+
+
 def load_desc(path):
     if not path:
         return {}
     try:
         with open(path, encoding='utf-8') as f:
-            return json.load(f)
+            value = json.load(f)
+            if not isinstance(value, dict):
+                raise ValueError("描述映射须为 JSON 对象")
+            return value
     except Exception as e:
         print(f'⚠ 无法读取中文描述文件 {path}（{e}），将使用原文描述', file=sys.stderr)
         return {}
@@ -58,6 +73,8 @@ def main():
                 except json.JSONDecodeError:
                     print(f'⚠ 第 {lineno} 行不是合法 JSON，已跳过', file=sys.stderr)
 
+    if not isinstance(stars, list):
+        ap.error("输入须为 JSON 数组、对象或 JSONL")
     desc_zh = load_desc(args.desc_zh)
 
     # topic → 中文分类（按优先级取首个命中；topics 通常是英文标签）
@@ -114,6 +131,8 @@ def main():
         if repo.get('fork'):
             return 'Fork'
         for t in topics:
+            if not isinstance(t, str):
+                continue
             t = t.lower()
             if t in TOPIC_CATS:
                 return TOPIC_CATS[t]
@@ -155,7 +174,7 @@ def main():
         for r in sorted(items, key=lambda x: num_stars(x.get('stargazers_count')), reverse=True):
             name = r['full_name']
             # html_url 缺失时回退拼接（外部/手改数据源可能缺字段）
-            repo_url = r.get('html_url') or f'https://github.com/{name}'
+            repo_url = safe_url(r.get('html_url'), f'https://github.com/{name}')
             desc = r.get('description') or '（无描述）'
             lang = r.get('language') or ''
             stars_cnt = num_stars(r.get('stargazers_count'))
@@ -166,7 +185,7 @@ def main():
     <span class="stars">★ {stars_cnt:,}</span>
   </div>
   <p class="desc">{esc(desc)}</p>
-  <div class="meta"><span>{esc(lang)}</span><span>{star_date}</span></div>
+  <div class="meta"><span>{esc(lang)}</span><span>{esc(star_date)}</span></div>
 </a>''')
         cards.append('</div>')
 

@@ -1,77 +1,33 @@
 ---
-name: "kit-gh-pages"
-description: "为 GitHub 仓库配置 GitHub Pages：自动探测仓库构建工具，生成部署 workflow 或用 gh CLI 设置源分支，最后报告 Pages 地址。触发场景：'帮我的 xxx 仓库开 GitHub Pages'、'把这个项目发布成网页'、'我的仓库怎么开 Pages'。"
+name: kit-gh-pages
+description: 为指定 GitHub 仓库配置 GitHub Pages，探测静态目录或 Node/VitePress/Hugo/Jekyll 构建并生成部署配置。用户明确选择 GitHub Pages 时使用；不承接完整网站开发或其他托管平台部署。
 ---
 
-# GH Pages · GitHub Pages 部署配置
+# 配置 GitHub Pages
 
-一键为仓库开通 GitHub Pages，自动适配构建流程。
-
-## 何时使用
-
-- 用户想给某个仓库开 GitHub Pages / 发布成网页
-- 用户问「怎么让我的 README / 文档 / 静态站上线」
-- 新仓库初始化后需要 Pages 支持
-
-## 何时不要用
-
-- 用户要的是完整网站开发（那是编码任务，不是配置任务）
-- 仓库是 fork 或没有访问权限——先确认权限
+`<SKILL_ROOT>` 是本文件所在目录。脚本默认会写远端 workflow 和 Pages 设置；先生成可审查的计划。
 
 ## 工作流
 
-1. **探测仓库情况**：
-   ```bash
-   gh repo view <owner/repo> --json defaultBranchRef,isFork --jq '{branch: .defaultBranchRef.name, fork: .isFork}'
-   gh api repos/<owner/repo>/pages --jq .status   # 200=已开 Pages，404=未开
-   ```
-2. **探测构建工具**（决定用「Workflow 部署」还是「分支部署」）：
-   - `hugo.toml` / `hugo.yaml` / `hugo.json`，或 `config.toml` + Hugo 特征目录（`archetypes` / `content` / `layouts`）→ **hugo**（产物默认 `public`，用 Hugo 构建 workflow；hugo 配置优先于 package.json，因为 Hugo 站常带 package.json 做资源构建；`config.toml` 单独存在不视为 Hugo，避免误判 Rust/Python 等项目）
-   - `package.json` 依赖含 `vitepress` → **vitepress**（产物默认 `docs/.vitepress/dist`；兼容官方脚手架默认的 `docs:build` 脚本，自动改用 `npm run docs:build`）
-   - `package.json` 含 `scripts.build` → **node**（Vite / Vue / React 等通用构建）
-   - `_config.yml` → **jekyll**（Pages 原生构建，源指向仓库根，走分支部署）
-   - 其他（纯静态 README、index.html）→ **branch**（分支部署，默认 `/docs` 目录）
-   （与 `setup-pages.sh` 的 `detect_builder` 一致）
-3. **执行部署**：
-   - node / vitepress / hugo → 写入 `.github/workflows/gh-pages.yml`（按框架生成对应构建步骤），`gh api` 设置 Pages 为 GitHub Actions 源
-   - jekyll / 纯静态 → 用 `gh api` 把 Pages 源指向默认分支（Jekyll 用仓库根 `/`，静态站用 `/docs` 或指定目录）
-4. **验证**：等 workflow 跑完（或 `gh api repos/.../pages` 查询状态），报告 `https://<owner>.github.io/<repo>/` 给用户
+1. 确认目标 `owner/repo`、源分支与用户是否要求实际部署。用 `gh auth status` 检查登录；fork 本身不是禁用条件，以仓库权限为准。
+2. 运行 `--dry-run` 读取远端结构与生成配置。框架判定、产物目录、依赖与现有 workflow 处理见 [部署参考](references/deployment.md)。
+3. 检查计划中的构建命令、锁文件、产物目录和资源 base URL。已有部署 workflow 要先读取，不能把“已存在”视为可用配置。
+4. 用户已要求配置/发布且计划符合目标时执行实际命令；仅咨询用法或缺少写入授权时交付计划。脚本不会覆盖已有 workflow，必要修改按实际需求完成。
+5. 查看真实 Pages 响应、构建/部署结果和页面访问情况。配置成功只表示源已设置，部署成功必须有运行结果；地址使用 API 返回的 `html_url`，不要猜测已上线。
 
-## 命令契约
+## 命令
 
 ```bash
-bash <skill目录>/scripts/setup-pages.sh <owner/repo> [--mode auto|workflow|branch] [--dir docs] [--branch main] [--output dist]
+bash <SKILL_ROOT>/scripts/setup-pages.sh owner/repo --dry-run
+bash <SKILL_ROOT>/scripts/setup-pages.sh owner/repo --mode branch --dir docs
 ```
 
-| 参数 | 说明 | 默认 |
-| --- | --- | --- |
-| `--mode` | `auto` 自动探测 / `workflow` 强制 Actions / `branch` 强制分支 | `auto` |
-| `--dir` | 分支部署的目录（如 `docs`；Jekyll 自动用仓库根）。注意 GitHub 分支部署源只支持 `/` 或 `/docs` | `docs` |
-| `--branch` | 分支部署推送到哪个分支 | 当前默认分支 |
-| `--output` | 覆盖 workflow 构建产物目录（auto 与强制 workflow 模式均按探测到的框架取默认：node=`dist`、vitepress=`docs/.vitepress/dist`、hugo=`public`） | 自动 |
+| 参数 | 用途 |
+| --- | --- |
+| `--mode auto|workflow|branch` | 自动判定或强制部署方式 |
+| `--dir docs|/` | 分支部署目录，只支持根目录与 `/docs` |
+| `--branch NAME` | 源分支，默认仓库默认分支 |
+| `--output PATH` | Actions 构建产物目录，默认按框架判定 |
+| `--dry-run` | 只读探测并打印计划/拟生成 workflow，不写远端 |
 
-## 示例
-
-```bash
-# 自动模式（推荐）
-bash scripts/setup-pages.sh holtwood/my-project
-
-# 文档站强制 Actions 部署（VitePress 会自动用 docs/.vitepress/dist）
-bash scripts/setup-pages.sh holtwood/docs-site --mode workflow
-
-# Hugo 站，自定义产物目录
-bash scripts/setup-pages.sh holtwood/blog --output public
-```
-
-## 实现说明
-
-- 依赖：[`gh` CLI](https://cli.github.com/) 已登录（`gh auth status` 检查）
-- 需要 `workflow` 或 `pages` 相关权限的 token/账号
-- workflow 模板按框架生成：node/vitepress 用 `actions/setup-node`（`npm ci` 失败自动回退 `npm install`），hugo 用 `peaceiris/actions-hugo`（最新版）+ `hugo --minify`，checkout 开启 `submodules: recursive`（Hugo 主题常用 submodule），push 触发分支跟随仓库默认分支，统一走 `actions/configure-pages` + `actions/deploy-pages` 标准流程
-- Jekyll 不走 Actions：GitHub Pages 对 Jekyll 有原生构建，源设为仓库根即可
-
-## 常见问题
-
-- **403 / 权限不足**：GitHub token 需要 `repo` 写权限；fork 仓库需先取消 fork 或提升权限
-- **Pages 一直 pending**：Source 设置之后需要几分钟生效；`gh api` 查询 `status` 字段
-- **自定义域名**：只支持项目站特性，CNAME 域名配置需用户自己加（写在 workflow 的 `--cname` 或仓库 Settings）
+依赖 gh（已登录）与 Python 3。退出码 0 配置/计划成功、1 运行错误、2 参数错误。权限或构建失败按具体错误处理，不要求取消 fork。

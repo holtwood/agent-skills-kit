@@ -14,6 +14,8 @@
 #
 set -euo pipefail
 
+usage() { echo '用法: setup-pages.sh <owner/repo> [--mode auto|workflow|branch] [--dir docs|/] [--branch NAME] [--output PATH] [--dry-run]'; }
+case "${1:-}" in -h|--help) usage; exit 0 ;; esac
 if [[ $# -lt 1 || -z "${1:-}" ]]; then
   echo "用法: setup-pages.sh <owner/repo> [--mode auto|workflow|branch] [--dir docs] [--branch main] [--output dist]" >&2
   exit 2
@@ -25,18 +27,29 @@ MODE="auto"
 DIR="docs"
 BRANCH=""
 OUTPUT=""
+DRY_RUN=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --mode) MODE="$2"; shift 2 ;;
-    --dir) DIR="$2"; shift 2 ;;
-    --branch) BRANCH="$2"; shift 2 ;;
-    --output) OUTPUT="$2"; shift 2 ;;
+    -h|--help) usage; exit 0 ;;
+    --dry-run) DRY_RUN=1; shift ;;
+    --mode|--dir|--branch|--output)
+      [[ $# -ge 2 && -n "$2" && "$2" != --* ]] || { echo "✗ $1 缺少参数" >&2; exit 2; }
+      case "$1" in
+        --mode) MODE="$2" ;;
+        --dir) DIR="$2" ;;
+        --branch) BRANCH="$2" ;;
+        --output) OUTPUT="$2" ;;
+      esac
+      shift 2 ;;
     *) echo "未知参数: $1" >&2; exit 2 ;;
   esac
 done
 
+[[ "$REPO" =~ ^[a-zA-Z0-9-]+/[a-zA-Z0-9_.-]+$ ]] || { echo '✗ 仓库名须为 owner/repo' >&2; exit 2; }
+command -v python3 >/dev/null || { echo '✗ 需要 Python 3' >&2; exit 1; }
 # 兼容 --dir /docs 这类带前导斜杠的写法，避免拼出 //docs
 DIR="${DIR#/}"
+[[ -z "$DIR" || "$DIR" == docs ]] || { echo "✗ 分支目录只支持 / 或 /docs" >&2; exit 2; }
 
 case "${MODE}" in
   auto|workflow|branch) ;;
@@ -50,6 +63,8 @@ gh auth status >/dev/null 2>&1 || { echo "✗ gh 未登录，请先 gh auth logi
 REPO_JSON="$(gh api "repos/${REPO}" --jq '{default_branch, fork: .fork}')" || exit 1
 DEFAULT_BRANCH="$(echo "${REPO_JSON}" | python3 -c 'import json,sys; print(json.load(sys.stdin)["default_branch"])')" || exit 1
 BRANCH="${BRANCH:-${DEFAULT_BRANCH}}"
+REF_QUERY="$(python3 -c 'import sys,urllib.parse; print(urllib.parse.urlencode({"ref":sys.argv[1]}))' "$BRANCH")"
+PACKAGE_JSON=""
 
 # 判断 Pages 是否已开启（GET /pages 返回 200 即已开，404 即未开）
 if gh api "repos/${REPO}/pages" --jq '.status' >/dev/null 2>&1; then
@@ -61,7 +76,7 @@ fi
 echo "📦 ${REPO} | 默认分支: ${DEFAULT_BRANCH} | Pages 已开: ${HAS_PAGES}"
 
 has_file() {
-  gh api "repos/${REPO}/contents/$1" --jq '.type' >/dev/null 2>&1
+  gh api "repos/${REPO}/contents/$1?${REF_QUERY}" >/dev/null 2>&1
 }
 
 # 跨平台 base64 解码：GNU coreutils 用 -d，BSD/macOS 用 -D，二者不通用。
@@ -72,7 +87,8 @@ b64_decode() {
 
 # 读取仓库根目录的 package.json（取不到返回空）
 get_package_json() {
-  gh api "repos/${REPO}/contents/package.json" --jq '.content' 2>/dev/null \
+  if [[ -n "$PACKAGE_JSON" ]]; then printf '%s' "$PACKAGE_JSON"; return; fi
+  gh api "repos/${REPO}/contents/package.json?${REF_QUERY}" --jq '.content' 2>/dev/null \
     | b64_decode 2>/dev/null || true
 }
 
@@ -133,6 +149,7 @@ detect_builder() {
   echo "branch"
 }
 
+PACKAGE_JSON="$(get_package_json)"
 WORKFLOW_FRAMEWORKS="node vitepress hugo"
 
 # 始终探测一次框架：auto 用它决定部署方式，强制 workflow 模式也用它取默认产物目录
@@ -170,12 +187,19 @@ case "${DETECTED}" in
 esac
 
 WORKFLOW_PATH=".github/workflows/gh-pages.yml"
-WORKFLOW_SHA="$(gh api "repos/${REPO}/contents/${WORKFLOW_PATH}" --jq '.sha' 2>/dev/null || echo "")"
+WORKFLOW_SHA="$(gh api "repos/${REPO}/contents/${WORKFLOW_PATH}?${REF_QUERY}" --jq '.sha' 2>/dev/null || echo "")"
 
 write_workflow() {
   # $1 = 产物目录
-  local outdir="$1"
-  local build_steps=""
+  local outdir
+  outdir="$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1]))' "$1")"
+  local build_steps="" install_cmd="npm install" cache_steps=""
+  if has_file package-lock.json || has_file npm-shrinkwrap.json; then
+    install_cmd="npm ci"
+    cache_steps="          cache: npm"
+  fi
+  local branch_yaml
+  branch_yaml="$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1]))' "$BRANCH")"
   # 构建步骤按「探测到的框架」决定（auto 与强制 workflow 均适用）
   case "${DETECTED}" in
     hugo)
@@ -188,8 +212,8 @@ write_workflow() {
       build_steps="      - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
-      - run: npm ci || npm install
+${cache_steps}
+      - run: ${install_cmd}
       - run: ${BUILD_CMD}"
       ;;
   esac
@@ -197,7 +221,7 @@ write_workflow() {
 name: Deploy to GitHub Pages
 on:
   push:
-    branches: [${DEFAULT_BRANCH}]
+    branches: [${branch_yaml}]
   workflow_dispatch:
 permissions:
   contents: read
@@ -213,6 +237,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+          ref: ${branch_yaml}
 ${build_steps}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
@@ -242,6 +267,15 @@ if [[ "${MODE}" == "workflow" ]] || [[ " ${WORKFLOW_FRAMEWORKS} " == *" ${MODE_N
     echo "  请确认仓库可构建，或改用分支部署（--mode branch / --dir docs）" >&2
     exit 2
   fi
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    TMP_WF="$(mktemp)"
+    trap 'rm -f "$TMP_WF"' EXIT
+    write_workflow "$OUTPUT"
+    echo "计划: ${REPO} / ${BRANCH} / Actions (${DETECTED}) / ${OUTPUT}"
+    if [[ -n "$WORKFLOW_SHA" ]]; then echo '已有 workflow 将保留，请核对其配置。'; fi
+    cat "$TMP_WF"
+    exit 0
+  fi
   if [[ -z "${WORKFLOW_SHA}" ]]; then
     TMP_WF="$(mktemp)"
     trap 'rm -f "${TMP_WF}"' EXIT
@@ -249,7 +283,8 @@ if [[ "${MODE}" == "workflow" ]] || [[ " ${WORKFLOW_FRAMEWORKS} " == *" ${MODE_N
     CONTENT="$(base64 < "${TMP_WF}" | tr -d '\n')"
     gh api "repos/${REPO}/contents/${WORKFLOW_PATH}" \
       -X PUT -f message="chore: enable GitHub Pages via Actions (${DETECTED})" \
-      -f content="${CONTENT}" >/dev/null && echo "✅ workflow 已写入: ${WORKFLOW_PATH}（构建产物: ${OUTPUT}）"
+      -f content="${CONTENT}" -f branch="${BRANCH}" >/dev/null || { echo "✗ workflow 写入失败" >&2; exit 1; }
+    echo "✅ workflow 已写入: ${WORKFLOW_PATH}（构建产物: ${OUTPUT}）"
   else
     echo "ℹ ${WORKFLOW_PATH} 已存在，跳过写入"
   fi
@@ -273,8 +308,12 @@ else
   if [[ "${SOURCE_PATH}" != "/" && "${SOURCE_PATH}" != "/docs" ]]; then
     echo "⚠ GitHub Pages 分支部署的源目录只支持 / 或 /docs（收到: ${SOURCE_PATH}），API 可能拒绝"
   fi
-  if [[ "${SOURCE_PATH}" != "/" ]] && ! gh api "repos/${REPO}/contents/${DIR}" --jq '.type' >/dev/null 2>&1; then
+  if [[ "${SOURCE_PATH}" != "/" ]] && ! gh api "repos/${REPO}/contents/${DIR}?${REF_QUERY}" >/dev/null 2>&1; then
     echo "⚠ 仓库中没有 ${DIR}/ 目录，Pages 会显示 404，请先放一个 index.html 进去"
+  fi
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    echo "计划: ${REPO} / ${BRANCH} / 分支源 ${SOURCE_PATH}"
+    exit 0
   fi
   if [[ "${HAS_PAGES}" == "true" ]]; then
     if ! gh api "repos/${REPO}/pages" -X PUT \
@@ -294,6 +333,6 @@ else
   echo "✅ Pages 源已设为 ${BRANCH} 分支 ${SOURCE_PATH} 目录"
 fi
 
-OWNER="$(echo "${REPO}" | cut -d/ -f1)"
-echo "🌐 发布地址: https://${OWNER}.github.io/$(echo "${REPO}" | cut -d/ -f2)/"
+PAGES_URL="$(gh api "repos/${REPO}/pages" --jq '.html_url // empty')"
+echo "🌐 Pages 配置地址: ${PAGES_URL:-API 暂未返回地址}"
 echo "⏳ 首次部署需等待 1-3 分钟，可运行 gh api repos/${REPO}/pages --jq .status 查询"

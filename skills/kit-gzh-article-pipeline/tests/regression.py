@@ -36,8 +36,7 @@ BODY = ("大家好，这是一段足够长的可见正文文本，用来通过�
         "正文里没有任何禁用标点与占位符，两份产物保持逐字一致。")
 GOOD_TEXT = f"<section><p><span leaf=\"\">{BODY}</span></p>{{IMG}}</section>"
 
-REAL_ARTICLE = pathlib.Path("~/Dev/github/holtwood/wechat-miniprogram/articles/whenfree/"
-                            "2026-10-04-yue-shijian").expanduser()
+REAL_ARTICLE = os.environ.get("GZH_ARTICLE_SMOKE_DIR")
 
 
 def locate_real_validator():
@@ -49,9 +48,12 @@ def locate_real_validator():
 
 
 def find_chrome():
+    if os.environ.get("KIT_SKIP_BROWSER_TESTS") == "1":
+        return None
     candidates = [os.environ.get("CHROME_BIN"),
                   "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-                  "/Applications/Chromium.app/Contents/MacOS/Chromium"]
+                  "/Applications/Chromium.app/Contents/MacOS/Chromium",
+                  shutil.which("chromium"), shutil.which("google-chrome")]
     for c in candidates:
         if c and pathlib.Path(c).is_file():
             return c
@@ -75,7 +77,7 @@ def run_check(d: pathlib.Path, validator=STUB_OK) -> int:
         env.pop("GZH_DESIGN_HOME", None)
     else:
         env["GZH_DESIGN_HOME"] = str(validator)
-    return subprocess.run([sys.executable, str(CHECK), str(d)],
+    return subprocess.run([sys.executable, str(CHECK), str(d), "--text-policy", "legacy"],
                           capture_output=True, text=True, env=env).returncode
 
 
@@ -184,6 +186,35 @@ class GateTests(unittest.TestCase):
         self.assertEqual(run_check(self.d), 1, "RIFF 伪装 PNG 必须拦截")
 
 
+    def test_standard_policy_allows_normal_punctuation(self):
+        for name in ("article-gzh.html", "article-gzh-embedded.html"):
+            p = self.d / name
+            p.write_text(p.read_text(encoding="utf-8").replace(BODY, BODY + "功能：记录——完成。"), encoding="utf-8")
+        proc = subprocess.run([sys.executable, str(CHECK), str(self.d), "--json"],
+                              capture_output=True, text=True,
+                              env={**os.environ, "GZH_DESIGN_HOME": str(STUB_OK)})
+        import json
+        result = json.loads(proc.stdout)
+        self.assertEqual(proc.returncode, 0, proc.stdout)
+        self.assertTrue(result["ok"])
+
+    def test_url_encoded_local_image(self):
+        (self.d / "img/tiny.png").rename(self.d / "img/a b.png")
+        p = self.d / "article-gzh.html"
+        p.write_text(p.read_text(encoding="utf-8").replace("img/tiny.png", "img/a%20b.png"), encoding="utf-8")
+        self.assertEqual(run_check(self.d), 0)
+
+    def test_external_validator_timeout_fails(self):
+        validator = self.d / "slow.py"
+        validator.write_text("import time; time.sleep(5)\n", encoding="utf-8")
+        proc = subprocess.run([sys.executable, str(CHECK), str(self.d), "--json", "--validator-timeout", "0.1"],
+                              capture_output=True, text=True, timeout=3,
+                              env={**os.environ, "GZH_DESIGN_HOME": str(validator)})
+        import json
+        self.assertEqual(proc.returncode, 1)
+        self.assertTrue(any("TimeoutExpired" in f for f in json.loads(proc.stdout)["findings"]))
+
+
 class ValidatorInterfaceTests(unittest.TestCase):
     """校验器退出码为 0 但输出警告 → 门禁必须失败（防警告拦截回退）。"""
 
@@ -228,7 +259,8 @@ class CoverTests(unittest.TestCase):
 
     def test17_valid_cover_renders(self):
         (self.d / "cover.html").write_text(self._fill(self.template), encoding="utf-8")
-        self.assertEqual(run_cover(self.d), 0, "按模板填好的封面必须渲染成功")
+        result = subprocess.run(["bash", str(COVER), str(self.d)], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test18_height_566_fails(self):
         t = self._fill(self.template).replace("width: 1800px; height: 766px", "width: 1800px; height: 566px")
@@ -247,11 +279,11 @@ class RealArticleSmoke(unittest.TestCase):
 
     def test_real_article_passes(self):
         validator = locate_real_validator()
-        if not (REAL_ARTICLE.is_dir() and validator):
-            self.skipTest("本机无试点文章或未装 gzh-design")
+        if not (REAL_ARTICLE and pathlib.Path(REAL_ARTICLE).expanduser().is_dir() and validator):
+            self.skipTest("未设置 GZH_ARTICLE_SMOKE_DIR 或未装 gzh-design")
         # 显式传真实校验器所在目录（目录形式，顺带验证 GZH_DESIGN_HOME 目录解析）
         env_validator = str(validator.parent.parent)
-        self.assertEqual(run_check(REAL_ARTICLE, validator=env_validator), 0)
+        self.assertEqual(run_check(pathlib.Path(REAL_ARTICLE).expanduser(), validator=env_validator), 0)
 
 
 if __name__ == "__main__":

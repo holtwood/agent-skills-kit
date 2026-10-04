@@ -46,7 +46,7 @@ const VALUE_FLAGS = new Set([
 function parseArgs(argv) {
   const args = {};
   for (let i = 0; i < argv.length; i++) {
-    const a = argv[i];
+    const a = ({ '-i': '--input', '-o': '--output', '-h': '--help' })[argv[i]] || argv[i];
     if (a.startsWith('--')) {
       const key = a.slice(2);
       const next = argv[i + 1];
@@ -965,6 +965,18 @@ function main() {
     console.error(`✗ ${message}`);
     process.exit(exitCode);
   };
+
+  const boolFlags = new Set(['help', 'trim', 'transparent', 'all', 'list', 'json']);
+  for (const [key, value] of Object.entries(args)) {
+    if (!VALUE_FLAGS.has(key) && !boolFlags.has(key)) fail(2, 'config/unknown-option', `未知参数: --${key}`);
+    if (VALUE_FLAGS.has(key) && key !== 'bleed' && value === true) fail(2, 'config/missing-value', `--${key} 缺少参数`);
+    if (boolFlags.has(key) && value !== true) fail(2, 'config/unexpected-value', `--${key} 不接受参数`);
+  }
+  if (args.help) {
+    console.log('用法: node frame.js --input PNG --output PNG|PDF [--preset browser|macos|device] [--json]');
+    console.log('使用 --list 查看合法取值；完整参数见 references/commands.md。');
+    return;
+  }
 
   // --list：列出所有可用取值后退出（agent 用来发现能力）
   if (args.list) {

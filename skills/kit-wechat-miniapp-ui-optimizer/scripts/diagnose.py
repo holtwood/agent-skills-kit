@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -45,16 +46,16 @@ def parse_args() -> argparse.Namespace:
 
 
 def walk_files(root: Path) -> Iterable[Path]:
-    for path in root.rglob("*"):
-        if not path.is_file():
-            continue
-        try:
-            relative_parts = path.relative_to(root).parts
-        except ValueError:
-            continue
-        if any(part in IGNORED_DIRS for part in relative_parts):
-            continue
-        yield path
+    # Prune before descending; rglob traverses even excluded node_modules trees.
+    for directory, dirs, names in os.walk(root, followlinks=False):
+        base = Path(directory)
+        dirs[:] = sorted(name for name in dirs
+                         if name not in IGNORED_DIRS and name.lower() not in TEST_DIRS
+                         and not (base / name).is_symlink())
+        for name in sorted(names):
+            path = base / name
+            if not path.is_symlink() and path.is_file():
+                yield path
 
 
 def is_test_path(path: Path) -> bool:
@@ -86,11 +87,12 @@ def load_json(path: Path) -> dict[str, Any] | None:
 
 def detect_type(root: Path, files: list[Path]) -> tuple[str, list[str]]:
     names = {path.name for path in files}
-    has_miniprogram = (root / "miniprogram").is_dir() or any(path.suffix == ".wxml" for path in files)
+    has_miniprogram = any(path.name == "app.json" or path.suffix == ".wxml" for path in files)
     has_src = (root / "src").is_dir()
-    has_game = "game.json" in names or "game.js" in names
+    config = load_json(root / "project.config.json") or {}
+    has_game = config.get("compileType") == "game" or bool(names & {"game.json", "game.js", "game.ts"})
     signals: list[str] = []
-    if has_game and not has_miniprogram:
+    if config.get("compileType") == "game" or (has_game and not has_miniprogram):
         return "疑似微信小游戏（请改用 kit-wechat-minigame-ui-optimizer）", ["发现 game.json/game.js，不套用 WXML/WXSS 规则"]
     if has_miniprogram:
         signals.append("发现 miniprogram 或 WXML/WXSS，按微信原生页面规则审查")
@@ -113,24 +115,38 @@ def find_token_candidates(root: Path, files: list[Path]) -> list[str]:
             continue
         if path.name.lower() in {"app.wxss", "app.scss", "app.css", "variables.css", "variables.scss"}:
             candidates.append(rel)
-    return sorted(set(candidates))[:40]
+    return sorted(set(candidates))
 
 
 def find_pages(root: Path, files: list[Path]) -> tuple[list[str], list[str]]:
-    pages: list[str] = []
-    components: list[str] = []
+    pages: set[str] = set()
+    components: set[str] = set()
     for path in files:
-        rel = relative(path, root)
-        parts = [part.lower() for part in path.relative_to(root).parts]
-        if path.suffix == ".wxml" and "pages" in parts:
-            pages.append(rel)
-        if path.suffix == ".wxml" and "components" in parts:
-            components.append(rel)
-    return sorted(pages), sorted(components)
+        if path.name == "app.json":
+            config = load_json(path) or {}
+            routes = list(config.get("pages", [])) if isinstance(config.get("pages"), list) else []
+            packages = config.get("subPackages", config.get("subpackages", []))
+            for package in packages if isinstance(packages, list) else []:
+                if isinstance(package, dict) and isinstance(package.get("pages"), list):
+                    routes.extend(str(package.get("root", "")) + "/" + str(route) for route in package["pages"])
+            for route in routes:
+                if isinstance(route, str):
+                    candidate = (path.parent / (route + ".wxml")).resolve()
+                    if candidate.is_relative_to(root) and candidate.is_file():
+                        pages.add(relative(candidate, root))
+        if path.suffix.lower() == ".wxml":
+            rel = relative(path, root)
+            parts = [part.lower() for part in path.relative_to(root).parts]
+            if "pages" in parts:
+                pages.add(rel)
+            config = load_json(path.with_suffix(".json")) or {}
+            if "components" in parts or config.get("component") is True:
+                components.add(rel)
+    return sorted(pages - components), sorted(components)
 
 
 def source_metrics(root: Path, files: list[Path]) -> dict[str, Any]:
-    production_files = [path for path in files if path.suffix.lower() in UI_EXTENSIONS and not is_test_path(path)]
+    production_files = [path for path in files if path.suffix.lower() in UI_EXTENSIONS and not is_test_path(path.relative_to(root))]
     color_hits: list[dict[str, Any]] = []
     token_hits = 0
     by_extension: dict[str, int] = {}
@@ -189,15 +205,15 @@ def build_report(root: Path) -> dict[str, Any]:
         "signals": signals,
         "entry_files": {
             "project_config": (root / "project.config.json").is_file(),
-            "app_json": (root / "app.json").is_file() or (root / "miniprogram" / "app.json").is_file(),
-            "game_json": (root / "game.json").is_file(),
-            "game_js": (root / "game.js").is_file(),
+            "app_json": any(path.name == "app.json" for path in files),
+            "game_json": any(path.name == "game.json" for path in files),
+            "game_js": any(path.name in {"game.js", "game.ts"} for path in files),
         },
         "pages": pages[:100],
         "page_count": len(pages),
         "components": components[:100],
         "component_count": len(components),
-        "token_candidates": token_candidates,
+        "token_candidates": token_candidates[:40],
         "token_candidate_count": len(token_candidates),
         "source_metrics": metrics,
         "image_metrics": image_metrics(root, files),
@@ -248,15 +264,22 @@ def main() -> int:
     if not root.is_dir():
         print(f"错误：项目目录不存在或不是目录：{root}", file=sys.stderr)
         return 2
-    report = build_report(root)
+    try:
+        report = build_report(root)
+    except OSError as exc:
+        print(f"错误：读取项目失败：{exc}", file=sys.stderr)
+        return 1
     output = json.dumps(report, ensure_ascii=False, indent=2) if args.as_json else human_report(report)
     if args.out:
         destination = args.out.expanduser().resolve()
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_text(output + "\n", encoding="utf-8")
-        print(f"报告已写入：{destination}")
-    else:
-        print(output)
+        try:
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_text(output + "\n", encoding="utf-8")
+        except OSError as exc:
+            print(f"错误：写入报告失败：{exc}", file=sys.stderr)
+            return 1
+        print(f"报告已写入：{destination}", file=sys.stderr)
+    print(output)
     return 0
 
 

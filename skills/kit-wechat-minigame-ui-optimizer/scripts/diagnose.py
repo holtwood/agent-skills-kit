@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -31,13 +32,16 @@ def parse_args() -> argparse.Namespace:
 
 
 def walk_files(root: Path) -> Iterable[Path]:
-    for path in root.rglob("*"):
-        if not path.is_file():
-            continue
-        parts = path.relative_to(root).parts
-        if any(part in IGNORED_DIRS for part in parts):
-            continue
-        yield path
+    # Prune before descending; rglob traverses even excluded node_modules trees.
+    for directory, dirs, names in os.walk(root, followlinks=False):
+        base = Path(directory)
+        dirs[:] = sorted(name for name in dirs
+                         if name not in IGNORED_DIRS and name.lower() not in TEST_DIRS
+                         and not (base / name).is_symlink())
+        for name in sorted(names):
+            path = base / name
+            if not path.is_symlink() and path.is_file():
+                yield path
 
 
 def read_text(path: Path) -> str:
@@ -76,7 +80,7 @@ def package_scripts(root: Path) -> dict[str, Any]:
 
 def build_report(root: Path) -> dict[str, Any]:
     files = list(walk_files(root))
-    source_files = [path for path in files if path.suffix.lower() in SOURCE_EXTENSIONS and not is_test_path(path)]
+    source_files = [path for path in files if path.suffix.lower() in SOURCE_EXTENSIONS and not is_test_path(path.relative_to(root))]
     color_files: list[dict[str, Any]] = []
     draw_files: list[dict[str, Any]] = []
     draw_hits = 0
@@ -95,13 +99,18 @@ def build_report(root: Path) -> dict[str, Any]:
     color_files.sort(key=lambda item: (-item["count"], item["file"]))
     draw_files.sort(key=lambda item: (-item["count"], item["file"]))
     images = [path for path in files if path.suffix.lower() in IMAGE_EXTENSIONS]
-    image_bytes = sum(path.stat().st_size for path in images if path.exists())
+    image_bytes = 0
+    for path in images:
+        try:
+            image_bytes += path.stat().st_size
+        except OSError:
+            pass
     entry_files = [
         relative(path, root)
         for path in files
         if path.name.lower() in {"game.json", "game.js", "game.ts", "app.js", "app.ts"}
     ]
-    has_game_entry = any(path.name in {"game.json", "game.js"} for path in files)
+    has_game_entry = any(path.name in {"game.json", "game.js", "game.ts"} for path in files)
     warnings: list[str] = []
     if not has_game_entry:
         warnings.append("未发现 game.json/game.js，需人工确认这是不是微信小游戏项目")
@@ -157,15 +166,22 @@ def main() -> int:
     if not root.is_dir():
         print(f"错误：游戏目录不存在或不是目录：{root}", file=sys.stderr)
         return 2
-    report = build_report(root)
+    try:
+        report = build_report(root)
+    except OSError as exc:
+        print(f"错误：读取项目失败：{exc}", file=sys.stderr)
+        return 1
     output = json.dumps(report, ensure_ascii=False, indent=2) if args.as_json else human_report(report)
     if args.out:
         destination = args.out.expanduser().resolve()
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_text(output + "\n", encoding="utf-8")
-        print(f"报告已写入：{destination}")
-    else:
-        print(output)
+        try:
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_text(output + "\n", encoding="utf-8")
+        except OSError as exc:
+            print(f"错误：写入报告失败：{exc}", file=sys.stderr)
+            return 1
+        print(f"报告已写入：{destination}", file=sys.stderr)
+    print(output)
     return 0
 
 

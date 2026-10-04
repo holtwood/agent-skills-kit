@@ -10,6 +10,7 @@ import argparse
 import html
 import json
 import sys
+from urllib.parse import urlsplit
 
 LANG_COLORS = {
     'JavaScript': '#f1e05a', 'TypeScript': '#3178c6', 'Python': '#3572A5',
@@ -29,12 +30,26 @@ def num_stars(v):
     except (TypeError, ValueError):
         return 0
 
+def safe_url(value, fallback):
+    if isinstance(value, str):
+        try:
+            uri = urlsplit(value)
+            if uri.scheme in {'https', 'http'} and uri.netloc:
+                return value
+        except ValueError:
+            pass
+    return fallback
+
+
 def load_desc(path):
     if not path:
         return {}
     try:
         with open(path, encoding='utf-8') as f:
-            return json.load(f)
+            value = json.load(f)
+            if not isinstance(value, dict):
+                raise ValueError("描述映射须为 JSON 对象")
+            return value
     except Exception as e:
         print(f'⚠ 无法读取中文描述文件 {path}（{e}），将使用原文描述', file=sys.stderr)
         return {}
@@ -46,19 +61,19 @@ def card(r, owner=''):
     stars = num_stars(r.get('stargazersCount'))
     updated = (r.get('updatedAt') or '')[:10]
     badges = ''
-    if r.get('fork'):
+    if r.get('fork', r.get('isFork', False)):
         badges += '<span class="b fork">Fork</span>'
-    if r.get('archived'):
+    if r.get('archived', r.get('isArchived', False)):
         badges += '<span class="b arc">归档</span>'
     # url 缺失/为空时回退拼接：有 owner 用 owner/name，保证链接指向正确仓库
     url = r.get('url') or (f"https://github.com/{owner}/{r.get('name', '')}".rstrip('/') if owner else f"https://github.com/{r.get('name', '')}")
-    return f'''<a class="card" href="{esc(url)}" target="_blank" rel="noopener">
+    return f'''<a class="card" href="{esc(safe_url(url, f"https://github.com/{owner}/{r.get('name', '')}"))}" target="_blank" rel="noopener">
   <div class="head"><span class="name">{esc(r.get('name') or '')}</span>{badges}</div>
   <p class="desc">{esc(desc)}</p>
   <div class="meta">
     <span class="lang"><i style="background:{color}"></i>{esc(lang)}</span>
     <span class="stars">★ {stars:,}</span>
-    <span class="time">{updated}</span>
+    <span class="time">{esc(updated)}</span>
   </div>
 </a>'''
 
@@ -82,7 +97,7 @@ def main():
     repos = [r for r in repos if isinstance(r, dict) and r.get('name')]
 
     desc_zh = load_desc(args.desc_zh)
-    featured_names = [n.strip() for n in args.featured.split(',') if n.strip()]
+    featured_names = list(dict.fromkeys(n.strip() for n in args.featured.split(',') if n.strip()))
 
     def group_of(r):
         # language 模式纯按语言分组（Fork/归档状态以卡片角标展示，不再单列分组）

@@ -16,7 +16,6 @@
 set -uo pipefail
 
 OUT_DIR="${HOME}/Pictures/shotkit"
-mkdir -p "${OUT_DIR}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 have() { command -v "$1" >/dev/null 2>&1; }
@@ -225,7 +224,7 @@ cmd_browser() {
   # 的 API），整页截图需走 CDP，本 skill 只做视口截图，宽度用 --width 控制
   "${chromium}" ${headless_flag} --disable-gpu --no-sandbox --hide-scrollbars \
     --window-size="${width},1200" --screenshot="$(winify "${out}")" \
-    "${url}" >/dev/null 2>&1
+    "${url}" >/dev/null 2>&1 || return 1
 
   if [[ -s "${out}" ]]; then
     echo "✅ 网页截图: ${out}"
@@ -580,15 +579,74 @@ OSA
   return 1
 }
 
-# ---------- 入口 ----------
+# ---------- 参数预检：任何无效输入均在探测/下载之前失败 ----------
+usage() {
+  sed -n '3,14p' "$0"
+}
 mode="${1:-}"
-[[ -z "${mode}" ]] && { echo "用法: capture.sh <browser|interact|screen|window|clip> [参数...]" >&2; exit 2; }
+case "$mode" in -h|--help) usage; exit 0 ;; esac
+case "$mode" in browser|interact|screen|window|clip) ;; *) usage >&2; exit 2 ;; esac
 shift
-case "${mode}" in
-  browser)  cmd_browser "$@" ;;
-  interact) cmd_interact "$@" ;;
-  screen)   cmd_screen "$@" ;;
-  window)   cmd_window "$@" ;;
-  clip)     cmd_clip "$@" ;;
-  *) echo "未知模式: ${mode}（支持 browser / interact / screen / window / clip）" >&2; exit 2 ;;
-esac
+validated_args=()
+FINAL_OUT=""
+POSITIONAL=0
+while [[ $# -gt 0 ]]; do
+  flag="$1"
+  case "$flag" in
+    -h|--help) usage; exit 0 ;;
+    --fullpage)
+      [[ "$mode" == interact ]] || { echo "✗ $mode 不支持 $flag" >&2; exit 2; }
+      validated_args+=("$flag"); shift ;;
+    -o|--output|--width|--height|--dsf|--selector|--sel|--click|--wait|--waitfor|--scroll)
+      [[ $# -ge 2 && -n "$2" && "$2" != --* ]] || { echo "✗ $flag 缺少参数" >&2; exit 2; }
+      value="$2"
+      case "$flag" in
+        -o|--output) FINAL_OUT="$value" ;;
+        --width)
+          [[ "$mode" == browser || "$mode" == interact ]] || { echo "✗ $mode 不支持 $flag" >&2; exit 2; }
+          [[ "$value" =~ ^[0-9]{1,5}$ ]] && (( 10#$value > 0 && 10#$value <= 16000 )) || { echo '✗ width 必须为 1..16000 的整数' >&2; exit 2; }
+          validated_args+=("$flag" "$value") ;;
+        *)
+          [[ "$mode" == interact ]] || { echo "✗ $mode 不支持 $flag" >&2; exit 2; }
+          case "$flag" in
+            --height) [[ "$value" =~ ^[0-9]{1,5}$ ]] && (( 10#$value > 0 && 10#$value <= 16000 )) || { echo '✗ height 必须为 1..16000 的整数' >&2; exit 2; } ;;
+            --dsf) [[ "$value" =~ ^[0-9]+([.][0-9]+)?$ ]] && awk -v n="$value" 'BEGIN { exit !(n>0 && n<=8) }' || { echo '✗ dsf 必须在 (0,8] 内' >&2; exit 2; } ;;
+            --wait) [[ "$value" =~ ^[0-9]{1,5}$ ]] && (( 10#$value <= 60000 )) || { echo '✗ wait 必须为 0..60000 毫秒' >&2; exit 2; } ;;
+            --scroll) [[ "$value" =~ ^-?[0-9]{1,6}$ ]] || { echo '✗ scroll 必须为整数像素' >&2; exit 2; } ;;
+          esac
+          validated_args+=("$flag" "$value") ;;
+      esac
+      shift 2 ;;
+    -*) echo "✗ 未知参数: $flag" >&2; exit 2 ;;
+    *)
+      [[ "$mode" == browser || "$mode" == interact || "$mode" == window ]] && [[ "$POSITIONAL" -eq 0 ]] || { echo "✗ 多余参数: $flag" >&2; exit 2; }
+      POSITIONAL=1; validated_args+=("$flag"); shift ;;
+  esac
+done
+if [[ "$mode" == browser || "$mode" == interact || "$mode" == window ]]; then
+  [[ "$POSITIONAL" -eq 1 ]] || { echo "✗ $mode 缺少目标参数" >&2; exit 2; }
+fi
+FINAL_OUT="${FINAL_OUT:-${OUT_DIR}/${mode}-$(date +%Y%m%d-%H%M%S).png}"
+mkdir -p "$(dirname "$FINAL_OUT")" || exit 1
+STAGE_DIR="$(mktemp -d "$(dirname "$FINAL_OUT")/.kit-capture.XXXXXX")" || exit 1
+trap 'rm -f "$STAGE_DIR/shot.png" "$STAGE_DIR/shot.png.bmp" "$STAGE_DIR/shot.png.tiff"; rmdir "$STAGE_DIR"' EXIT
+validated_args+=(-o "$STAGE_DIR/shot.png")
+run_capture() {
+  case "$mode" in
+    browser) cmd_browser "${validated_args[@]}" ;;
+    interact) cmd_interact "${validated_args[@]}" ;;
+    screen) cmd_screen "${validated_args[@]}" ;;
+    window) cmd_window "${validated_args[@]}" ;;
+    clip) cmd_clip "${validated_args[@]}" ;;
+  esac
+}
+if run_capture >/dev/null && [[ -s "$STAGE_DIR/shot.png" ]]; then
+  signature="$(od -An -tx1 -N8 "$STAGE_DIR/shot.png" | tr -d ' \n')"
+  [[ "$signature" == 89504e470d0a1a0a ]] || { echo '✗ 后端未输出 PNG，原文件已保留' >&2; exit 1; }
+  mv "$STAGE_DIR/shot.png" "$FINAL_OUT" || exit 1
+  echo "✅ ${mode} 截图: $FINAL_OUT"
+else
+  if [[ -s "$STAGE_DIR/shot.png.bmp" ]]; then mv "$STAGE_DIR/shot.png.bmp" "$FINAL_OUT.bmp"; echo "原始 BMP: $FINAL_OUT.bmp" >&2; fi
+  echo "✗ $mode 截图失败，原文件已保留" >&2
+  exit 1
+fi

@@ -7,7 +7,7 @@
     python3 check_article.py --help
 
 检查项（任何一项失败即退出码 1，全部通过才 0）:
-  1. 可见文本规则：HTMLParser 抽取可见文本（charref 已解码），扫描全角冒号、破折号、弯双引号、{{占位符}}
+  1. 可见文本规则：HTMLParser 抽取可见文本（charref 已解码），扫描 {{占位符}}；--text-policy legacy 时额外限制标点
   2. 图片完整性：存档版 <img> 用 HTMLParser 按属性抽取（单双引号都识别），本地路径必须存在、
      不允许 data: 内嵌；embedded 版必须为 data:image/<mime>;base64, 形式，base64 严格解码且
      用 Pillow 实际解码验证（防 4 字节假 PNG、RIFF 伪装、缺 base64 标记）；本地图片同样用 Pillow 解码
@@ -37,6 +37,7 @@ import re
 import subprocess
 import sys
 from html.parser import HTMLParser
+from urllib.parse import unquote, urlsplit
 
 FORBIDDEN_TEXT = [
     ("——", "破折号"),
@@ -115,7 +116,7 @@ def check_image(src: str, embedded: bool, parent: pathlib.Path, line: int, findi
                             f"（须为 data:image/png|jpeg|gif|webp;base64,…，实际 {src[:56]}）")
             return None
         try:
-            raw = base64.b64decode(m.group(2), validate=True)
+            raw = base64.b64decode(m.group(2).replace("\r", "").replace("\n", ""), validate=True)
         except Exception:
             findings.append(f"✗ L{line}: embedded 版图片 base64 损坏，无法解码（{src[:48]}…）")
             return None
@@ -125,20 +126,25 @@ def check_image(src: str, embedded: bool, parent: pathlib.Path, line: int, findi
     if src.startswith("data:"):
         findings.append(f"✗ L{line}: 存档版应为本地图片路径，却是 data: 内嵌（{src[:48]}…）")
         return None
-    f = parent / src
+    uri = urlsplit(src)
+    if uri.scheme or uri.netloc:
+        findings.append(f"✗ L{line}: 存档版图片须为本地路径（{src[:80]}）")
+        return None
+    f = parent / unquote(uri.path)
     if not f.is_file():
         findings.append(f"✗ L{line}: 图片不存在 {src}")
         return None
-    if not decode_image(f.read_bytes(), f"{src}", findings):
+    raw = f.read_bytes()
+    if not decode_image(raw, f"{src}", findings):
         return None
-    return hashlib.sha256(f.read_bytes()).hexdigest()
+    return hashlib.sha256(raw).hexdigest()
 
 
-def check_file(path: pathlib.Path, embedded: bool, findings: list):
+def check_file(path: pathlib.Path, embedded: bool, findings: list, text_policy="standard"):
     text = path.read_text(encoding="utf-8")
     visible, imgs, tags = parse_page(text)
     # 1. 可见文本规则
-    for pat, name in FORBIDDEN_TEXT:
+    for pat, name in FORBIDDEN_TEXT if text_policy == "legacy" else []:
         n = visible.count(pat)
         if n:
             findings.append(f"✗ {path.name}: 可见文本含{name} {n} 处")
@@ -170,6 +176,8 @@ def locate_validator(findings: list):
         return cand
     for base in (pathlib.Path(__file__).resolve().parent.parent.parent / "gzh-design",
                  pathlib.Path.home() / ".agents" / "skills" / "gzh-design",
+                 pathlib.Path(os.environ.get("CODEX_HOME", str(pathlib.Path.home() / ".codex"))) / "skills" / "gzh-design",
+                 pathlib.Path.home() / ".config" / "opencode" / "skills" / "gzh-design",
                  pathlib.Path.home() / ".claude" / "skills" / "gzh-design"):
         candidates.append(base / "scripts" / "validate_gzh_html.py")
     for c in candidates:
@@ -180,8 +188,13 @@ def locate_validator(findings: list):
     return None
 
 
-def run_validator(validator, f: pathlib.Path, findings: list):
-    proc = subprocess.run([sys.executable, str(validator), str(f)], capture_output=True, text=True)
+def run_validator(validator, f: pathlib.Path, findings: list, timeout=30):
+    try:
+        proc = subprocess.run([sys.executable, str(validator), str(f)], capture_output=True,
+                              text=True, encoding="utf-8", errors="replace", timeout=timeout)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        findings.append(f"✗ gzh-design 校验无法完成: {f.name}（{type(exc).__name__}）")
+        return
     out = (proc.stdout + proc.stderr).strip()
     if proc.returncode != 0 or VALIDATOR_OUT_FAIL_RE.search(out):
         findings.append(f"✗ gzh-design 校验未全绿: {f.name}\n{out[:800]}")
@@ -192,22 +205,32 @@ def main() -> int:
     ap.add_argument("directory", nargs="?", help="含排版产物的文章目录")
     ap.add_argument("--html", help="存档版文件名（默认 article-gzh.html）")
     ap.add_argument("--embedded", help="内嵌版文件名（默认 article-gzh-embedded.html）")
+    ap.add_argument("--text-policy", choices=("standard", "legacy"), default="standard",
+                    help="standard 允许普通标点；legacy 启用历史标点限制")
+    ap.add_argument("--validator-timeout", type=float, default=30, help="单份外部校验超时秒数（默认 30，上限 300）")
+    ap.add_argument("--json", action="store_true", help="输出机器可读检查结果")
     args = ap.parse_args()
     if not args.directory:
         ap.print_help()
         return 2
+    if not 0 < args.validator_timeout <= 300:
+        ap.error("--validator-timeout 必须在 (0, 300] 内")
 
     d = pathlib.Path(args.directory)
     f_html = d / (args.html or "article-gzh.html")
     f_emb = d / (args.embedded or "article-gzh-embedded.html")
+    findings: list = []
     for f in (f_html, f_emb):
         if not f.is_file():
-            print(f"✗ 缺少产物 {f}")
-            return 1
-
-    findings: list = []
-    r1 = check_file(f_html, embedded=False, findings=findings)
-    r2 = check_file(f_emb, embedded=True, findings=findings)
+            findings.append(f"✗ 缺少产物 {f}")
+    if findings:
+        return emit_result(args, findings)
+    try:
+        r1 = check_file(f_html, embedded=False, findings=findings, text_policy=args.text_policy)
+        r2 = check_file(f_emb, embedded=True, findings=findings, text_policy=args.text_policy)
+    except (OSError, UnicodeError, ValueError) as exc:
+        findings.append(f"✗ 读取产物失败: {exc}")
+        return emit_result(args, findings)
     # 双产物一致：图片数量无条件比较；正文归一化后逐字比较；图片逐张摘要比较
     if r1["imgs"] != r2["imgs"]:
         findings.append(f"✗ 两份产物图片数量不一致: {f_html.name} {r1['imgs']} vs {f_emb.name} {r2['imgs']}")
@@ -219,8 +242,19 @@ def main() -> int:
 
     validator = locate_validator(findings)
     if validator:
-        run_validator(validator, f_html, findings)
-        run_validator(validator, f_emb, findings)
+        run_validator(validator, f_html, findings, timeout=args.validator_timeout)
+        run_validator(validator, f_emb, findings, timeout=args.validator_timeout)
+
+    return emit_result(args, findings, validator)
+
+
+def emit_result(args, findings, validator=None):
+    code = 1 if findings else 0
+    if args.json:
+        print(json.dumps({"ok": not findings, "command": "check_article", "exitCode": code,
+                          "textPolicy": args.text_policy, "findings": findings,
+                          "validator": str(validator) if validator else None}, ensure_ascii=False, indent=2))
+        return code
 
     if findings:
         print("\n".join(findings))

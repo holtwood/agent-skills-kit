@@ -9,42 +9,62 @@
 | Skill | 干什么 |
 | --- | --- |
 | [`kit-capture`](./skills/kit-capture/) | 跨平台截图（Win/macOS/Linux/WSL）：桌面 / 窗口 / 网页 / 剪贴板，多后端自动降级；`interact` 模式可点按钮、等元素、截指定元素 |
-| [`kit-shotframe`](./skills/kit-shotframe/) | 截图套壳美化：浏览器 / macOS / iPhone / Galaxy 等框，社媒与应用商店精确画布，文案层，矢量 PDF |
+| [`kit-shotframe`](./skills/kit-shotframe/) | 截图套壳美化：浏览器 / macOS / iPhone / Galaxy 等框，社媒与应用商店画布比例，文案层，矢量 PDF |
 | [`kit-gh-pages`](./skills/kit-gh-pages/) | GitHub Pages 一键配置，自动探测 Vite / Hugo / VitePress / Jekyll |
 | [`kit-gh-stars`](./skills/kit-gh-stars/) | GitHub 收藏 → 中文分类索引站，配每周 CI 同步 |
-| [`kit-project-hub`](./skills/kit-project-hub/) | 名下仓库 → 导航站，精选区 + 每周审计 |
+| [`kit-project-hub`](./skills/kit-project-hub/) | 名下仓库 → 导航站，精选区 + 每周数据同步 |
 | [`kit-wechat-miniapp-ui-optimizer`](./skills/kit-wechat-miniapp-ui-optimizer/) | 原生微信小程序 UI 诊断：WXML/WXSS、页面/组件、主题、安全区、资源与状态 |
 | [`kit-wechat-minigame-ui-optimizer`](./skills/kit-wechat-minigame-ui-optimizer/) | 微信小游戏 Canvas UI 诊断：HUD、触摸命中区、分辨率适配、贴图、状态与帧率线索 |
-| [`kit-gzh-article-pipeline`](./skills/kit-gzh-article-pipeline/) | 公众号文章全流程（七阶段）：选题排期 → 截图采集 → 去 AI 味写作 → 标题候选 → 排版与配图 → 双门禁终检 → 发布归档 |
+| [`kit-gzh-article-pipeline`](./skills/kit-gzh-article-pipeline/) | 自有产品公众号文章：事实底稿、真实截图、封面、双份 HTML 与终检，按所需阶段进入 |
 
 ## 安装
 
 ```bash
-./install.sh                          # Linux / macOS / WSL（bash ≥ 4.4），装全部
-./install.sh kit-shotframe            # 或按需安装
-.\install.ps1                         # Windows 原生 PowerShell（junction）
+./install.sh                          # Linux / macOS / WSL，自带 Bash 3.2 即可
+./install.sh --agent codex kit-shotframe  # 只安装到 Codex
+./install.sh --dry-run                # 预演，不写目标目录
+.\install.ps1 -Agent codex           # Windows PowerShell（junction）
 npx skills add holtwood/agent-skills-kit   # 或用 skills.sh
 ```
 
-也可手动把 `skills/<name>/` 整个拷进 `.opencode/skills/` 或 `.claude/skills/`。
+安装器默认链接到 Codex、Claude Code 和 opencode，仓库更新后链接立即使用新版本。`--list` 查看可安装技能；已有普通目录会保留并报告冲突，退出码为 1。
 
-依赖：`kit-capture` 在 Windows 上需 Git Bash / MSYS2 环境，桌面/窗口/剪贴板模式在 Windows 与 WSL 下走 `powershell.exe`；`kit-shotframe` 需 Node ≥ 18 + Chromium（找不到会自动下载 chrome-headless-shell）；GitHub 类需已登录的 [gh CLI](https://cli.github.com/)。
+| 客户端 | 默认全局安装位置 | 覆盖变量 |
+| --- | --- | --- |
+| Codex | `${CODEX_HOME:-~/.codex}/skills/` | `CODEX_SKILLS_DIR` |
+| Claude Code | `~/.claude/skills/` | `CLAUDE_SKILLS_DIR` |
+| opencode | `~/.config/opencode/skills/` | `OPENCODE_SKILLS_DIR` |
+
+也可把任意 `skills/<name>/` 完整复制到客户端技能目录。安装本仓库不触碰其他名称的技能。
+
+依赖：`kit-capture` 在 Windows 上需 Git Bash / MSYS2 环境，桌面/窗口/剪贴板模式在 Windows 与 WSL 下走 `powershell.exe`；`kit-shotframe` 需 Node ≥ 18 + Chromium（复用已有浏览器及缓存，不自动下载）；GitHub 类需已登录的 [gh CLI](https://cli.github.com/)。
 
 ## 用法
 
-每个 skill 的 `SKILL.md` 即完整文档。典型链路——截网页 → 套框出商店图：
+每个 skill 的 `SKILL.md` 是精简入口，详细参数和条件流程在相邻 `references/` 中按需读取。典型链路——截网页 → 套框出商店图：
 
 ```bash
-bash skills/kit-capture/scripts/capture.sh browser https://example.com -o page.png
-node skills/kit-shotframe/scripts/frame.js --input page.png --preset device --device galaxy \
+bash skills/kit-capture/scripts/capture.sh interact https://example.com --width 390 --height 844 --dsf 2 -o page.png
+node skills/kit-shotframe/scripts/frame.js --input page.png --preset device --device iphone \
   --ratio appstore-69 --width 1320 --headline "大字标题" --bleed -o store-01.png
 ```
 
 ## 原则
 
-- **确定性**：输出 100% 来自真实截图与数据，不调用图像生成模型
+- **真实证据**：截图和仓库数据来自真实输入，文章功能与经历有依据；套框使用确定性渲染
 - **零依赖优先**：只用系统工具；例外按需自举到缓存目录，不进项目依赖
-- **Skill 自治**：每个 skill 自包含（`SKILL.md` + `scripts/`），拷走即用
+- **独立分发**：技能脚本不引用兄弟目录；编排技能按需使用外部能力，并说明缺失时能交付什么
+- **最小入口**：触发描述明确，参考按需读取，用户已授权的工作连续完成
+
+## 检查与维护
+
+```bash
+python3 tools/validate_skills.py       # 标准库：元数据、引用、脚本路径和 README 索引
+python3 tools/check.py                 # 离线检查全部脚本与回归；公众号测试需 Pillow
+python3 tools/check.py --render        # 增加真实 Chromium 渲染，需本机浏览器
+```
+
+本地检查与 CI 共用入口。浏览器测试只访问临时目录中的本地 fixture；GitHub 操作使用离线替身。历史文章标点限制需显式传 `--text-policy legacy`，默认允许正常中文标点。
 
 ## 文档
 
