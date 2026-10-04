@@ -15,6 +15,7 @@
 | [`kit-project-hub`](./skills/kit-project-hub/) | Your repos → navigation site, featured section + weekly audit |
 | [`kit-wechat-miniapp-ui-optimizer`](./skills/kit-wechat-miniapp-ui-optimizer/) | Native WeChat mini-program UI audit: WXML/WXSS, pages/components, themes, safe areas, assets, and states |
 | [`kit-wechat-minigame-ui-optimizer`](./skills/kit-wechat-minigame-ui-optimizer/) | WeChat minigame Canvas UI audit: HUD, touch hit areas, resolution scaling, sprites, states, and frame-rate clues |
+| [`kit-gzh-article-pipeline`](./skills/kit-gzh-article-pipeline/) | WeChat Official-Account article pipeline: topic pool → simulator screenshots → de-AI-flavor writing → title candidates → cover rendering → themed HTML layout → dual-gate QA → publish & archive |
 
 ## Install
 

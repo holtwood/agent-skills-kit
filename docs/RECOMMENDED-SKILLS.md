@@ -53,3 +53,21 @@
 - opencode：`~/.config/opencode/skills/`
 
 本仓库的 `install.sh` / `install.ps1` 只管理 `skills/` 下的自研 skill，不会碰到上面这两个目录里的第三方 skill。
+
+### humanizer（unclecheng v4.1）
+
+- 链接：SkillHub `skillhub install unclecheng-reduce-ai-perception-v2 --namespace user_ab5ae6ee`
+- 用途：中文去 AI 味规则库——禁用词表、「不是A而是B」三毒判定、标点禁令、L1-L4 四层自检
+- 备注：kit-gzh-article-pipeline 的写作红线与终检门禁来自它；对比过 biostart/humanizer（重名、英文向）后选定
+
+### gzh-design
+
+- 链接：[isjiamu/gzh-design-skill](https://github.com/isjiamu/gzh-design-skill)
+- 用途：Markdown → 公众号内联样式 HTML 的主题组件库（摸鱼绿等 6 套主题）+ 合规校验脚本
+- 备注：kit-gzh-article-pipeline 阶段 5 的排版引擎；校验脚本需 Python3 + Pillow
+
+### content-headline-hacker / topic-pool
+
+- 链接：SkillHub（`user_531be29f` / `user_90a020b6`）
+- 用途：标题六心理触发器批量候选；选题池四维评分与状态流转
+- 备注：轻量纯方法论 skill，分别服务流水线的标题与选题阶段
