@@ -9,12 +9,15 @@
 检查项（任何一项失败即退出码 1，全部通过才 0）:
   1. 可见文本规则：HTMLParser 抽取可见文本（charref 已解码），扫描全角冒号、破折号、弯双引号、{{占位符}}
   2. 图片完整性：存档版 <img> 用 HTMLParser 按属性抽取（单双引号都识别），本地路径必须存在、
-     不允许 data: 内嵌；embedded 版必须全部为 data:image/* 且 base64 严格可解码、魔数匹配
+     不允许 data: 内嵌；embedded 版必须为 data:image/<mime>;base64, 形式，base64 严格解码且
+     用 Pillow 实际解码验证（防 4 字节假 PNG、RIFF 伪装、缺 base64 标记）；本地图片同样用 Pillow 解码
   3. 双产物一致：可见正文逐字一致（归一化空白后）、图片数量无条件相等、对应图片内容摘要一致
   4. 非空正文：两份产物可见文本均 ≥ 50 字
   5. 禁用标签：script / iframe / link / object / embed 任何位置都不允许
   6. gzh-design 兼容校验：校验器必须可用（缺失 = 失败，不降级跳过，与依赖契约一致），
      对两份产物分别调用；其输出含 ⚠️/❌/ERROR/WARNING 或退出码非 0 即失败
+
+依赖: 标准库 + Pillow（图片实际解码）。
 
 校验器接口约定（升级 gzh-design 后必跑 tests/regression.py）:
   validate_gzh_html.py <单个HTML路径>；退出码 0 且输出不含 ⚠️/❌/ERROR/WARNING 才算全绿。
@@ -44,9 +47,26 @@ FORBIDDEN_TEXT = [
 PLACEHOLDER_RE = re.compile(r"\{\{[^}]*\}\}")
 FORBIDDEN_TAGS = {"script", "iframe", "link", "object", "embed"}
 MIN_TEXT_LEN = 50
-# 常见图片魔数: PNG / JPEG / GIF / WEBP(RIFF)
-MAGIC = (b"\x89PNG", b"\xff\xd8\xff", b"GIF8", b"RIFF")
+# data URI 必须显式声明 base64 与受支持的图片 MIME
+DATA_URI_RE = re.compile(r"^data:image/(png|jpeg|jpg|gif|webp);base64,([A-Za-z0-9+/=\r\n]+)$")
 VALIDATOR_OUT_FAIL_RE = re.compile(r"⚠|❌|ERROR|WARNING", re.IGNORECASE)
+
+
+def decode_image(raw: bytes, label: str, findings: list) -> bool:
+    """用 Pillow 实际解码，任何损坏/伪装都算失败。"""
+    import io
+    try:
+        from PIL import Image
+    except ImportError:
+        findings.append(f"✗ {label}: 缺 Pillow，无法做图片解码验证（pip3 install Pillow）")
+        return False
+    try:
+        img = Image.open(io.BytesIO(raw))
+        img.load()
+        return True
+    except Exception as e:
+        findings.append(f"✗ {label}: 图片无法被 Pillow 解码（{type(e).__name__}: {e}）")
+        return False
 
 
 class PageParser(HTMLParser):
@@ -89,26 +109,29 @@ def parse_page(text: str):
 
 def check_image(src: str, embedded: bool, parent: pathlib.Path, line: int, findings: list):
     if embedded:
-        if not src.startswith("data:image/"):
-            findings.append(f"✗ L{line}: embedded 版图片不是 data:image/* 内嵌（{src[:48]}）")
+        m = DATA_URI_RE.match(src)
+        if not m:
+            findings.append(f"✗ L{line}: embedded 版图片 data URI 不合规"
+                            f"（须为 data:image/png|jpeg|gif|webp;base64,…，实际 {src[:56]}）")
             return None
-        payload = src.split(",", 1)[1] if "," in src else ""
         try:
-            raw = base64.b64decode(payload, validate=True)
+            raw = base64.b64decode(m.group(2), validate=True)
         except Exception:
             findings.append(f"✗ L{line}: embedded 版图片 base64 损坏，无法解码（{src[:48]}…）")
             return None
-        if not raw.startswith(MAGIC):
-            findings.append(f"✗ L{line}: embedded 版图片解码后不是可识别的图片格式（魔数不符，{src[:48]}…）")
+        if not decode_image(raw, f"L{line} 内嵌图片", findings):
             return None
         return hashlib.sha256(raw).hexdigest()
     if src.startswith("data:"):
         findings.append(f"✗ L{line}: 存档版应为本地图片路径，却是 data: 内嵌（{src[:48]}…）")
         return None
-    if not (parent / src).is_file():
+    f = parent / src
+    if not f.is_file():
         findings.append(f"✗ L{line}: 图片不存在 {src}")
         return None
-    return hashlib.sha256((parent / src).read_bytes()).hexdigest()
+    if not decode_image(f.read_bytes(), f"{src}", findings):
+        return None
+    return hashlib.sha256(f.read_bytes()).hexdigest()
 
 
 def check_file(path: pathlib.Path, embedded: bool, findings: list):

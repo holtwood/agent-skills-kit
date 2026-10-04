@@ -1,6 +1,7 @@
 <!DOCTYPE html>
-<!-- 公众号头图模板 · 复制到文章目录后：① 全局替换 {{占位符}} ② 把 img/01-home.png、img/02-home-b.png
-     换成本篇截图（竖版手机截图，比例约 540:1166）③ 渲染: bash <skill>/scripts/render_cover.sh <文章目录>
+<!-- 公众号头图模板 · 复制到文章目录后：① 全局替换 {{占位符}}（一句话主张与文章标题视角错开：标题卖「为什么点开」，
+     封面卖「里面讲什么」）② 把 img/01-home.png、img/02-home-b.png 换成本篇截图
+     （竖版手机截图，比例约 540:1166）③ 渲染: bash <skill>/scripts/render_cover.sh <文章目录>
      结构约定: 头图区块 1800×766 + 顶部间距 8px 的 1000×1000 方形区块，页面总高 1780 —— 裁切脚本依赖此结构，勿改尺寸 -->
 <html lang="zh-CN">
 <head>
@@ -43,9 +44,9 @@
     <div class="dot" style="width:10px;height:10px;left:860px;top:620px;opacity:.4;"></div>
 
     <div class="copy">
-      <div class="kicker">{{顶部标签，如 微信小程序}}</div>
+      <div class="kicker">{{顶部标签}}</div>
       <div class="title">{{产品名}}</div>
-      <div class="subtitle">{{一句话主张（与文章标题视角错开）}}</div>
+      <div class="subtitle">{{一句话主张}}</div>
       <div class="badge-row">
         <div class="badge">{{能力1}}</div>
         <div class="badge">{{能力2}}</div>
@@ -61,7 +62,7 @@
     <div class="grid-deco"></div>
     <div class="dot" style="width:18px;height:18px;left:120px;top:130px;opacity:.5;"></div>
     <div class="copy" style="left:0;right:0;align-items:center;text-align:center;">
-      <div class="kicker" style="letter-spacing:14px;">{{顶部标签，如 微信小程序}}</div>
+      <div class="kicker" style="letter-spacing:14px;">{{顶部标签}}</div>
       <div class="title">{{产品名}}</div>
       <div class="subtitle">{{一句话主张}}</div>
     </div>

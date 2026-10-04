@@ -75,8 +75,8 @@ description: "为自有微信小程序或小游戏制作公众号产品介绍图
 ### 阶段 5 · 双门禁终检（都过才算「成稿可交付」）
 
 1. **统一门禁** `scripts/check_article.py <文章目录>`：可见文本（实体解码后）标点规则 / 图片完整性
-   （含 base64 严格解码与魔数）/ 双产物正文与图片逐项一致 / 非空正文 / 禁用标签 / gzh-design 校验
-   （**警告同样视为失败；校验器缺失 = 失败，不跳过**），任何失败退出码非 0
+   （base64 严格解码并用 Pillow 实际解码验证，本地与内嵌都验）/ 双产物正文与图片逐项一致 / 非空正文 /
+   禁用标签 / gzh-design 校验（**警告同样视为失败；校验器缺失 = 失败，不跳过**），任何失败退出码非 0
 2. **视觉验收**：Chrome headless 先 720px、再 390px（手机宽）各渲染一张人工过目；
    通过条件：图片齐全、截图文字可读、裁切完整、图注与内容匹配、CTA 可见可用
 
@@ -111,13 +111,14 @@ CHROME_BIN=/path/to/chrome bash <SKILL_ROOT>/scripts/render_cover.sh <文章目�
 python3 <SKILL_ROOT>/scripts/check_article.py <文章目录>   # --help 看全部检查项
 ```
 
-纯标准库实现。对 `article-gzh.html` 与 `article-gzh-embedded.html` 做文本规则 / 图片完整性 /
-双产物一致性 / 非空正文 / 禁用标签检查，并调用 gzh-design 校验器（警告=失败；
+标准库 + Pillow（图片实际解码）。对 `article-gzh.html` 与 `article-gzh-embedded.html` 做文本规则 /
+图片完整性 / 双产物一致性 / 非空正文 / 禁用标签检查，并调用 gzh-design 校验器（警告=失败；
 **校验器缺失 = 失败**，与依赖契约一致）。退出码 0 全过 / 1 有失败项 / 2 参数错误。
 
-**回归测试**：`python3 <SKILL_ROOT>/tests/regression.py`——两轮外部评审的全部假通过反例都已固化
-（缺图、单引号路径、损坏 base64、实体冒号、正文不一致、禁用标签、空正文、图片数量与内容不一致、
-占位符残留、校验器缺失等），**改 check_article.py 后必跑且必须全绿**。
+**回归测试**：`python3 <SKILL_ROOT>/tests/regression.py`——三轮外部评审的全部假通过反例都已固化
+（缺图、单引号路径、损坏 base64、缺 base64 标记、四字节假 PNG、RIFF 伪装、实体冒号、正文不一致、
+禁用标签、空正文、图片数量与内容不一致、占位符残留、校验器缺失、校验器警告，以及封面脚本的
+高度偏离与 CSS 占位符反例），**改 check_article.py 或 render_cover.sh 后必跑且必须全绿**。
 
 ## 示例
 
@@ -147,7 +148,9 @@ python3 <SKILL_ROOT>/scripts/check_article.py ~/articles/whenfree/2026-10-04-yue
 ## 常见问题
 
 - **自动化报 `page node not found`**：新开窗/刚刷新后立刻自动化所致——轮询页面就绪后再操作（见阶段 1）
-- **渲染报「渲染尺寸 != (1800,1780)」**：cover.html 结构偏离模板（区块尺寸或间距被改动），按 assets/ 模板重对齐
+- **渲染报「截图尺寸 != (1800,1780)」**：渲染环境异常（非模板问题），重试或检查 CHROME_BIN；
+  模板结构偏离由 DOM 实测拦截（错误信息会给出实测几何值）
+- **渲染报「存在未替换的占位符（含样式/属性）」**：源码级扫描抓到了 <style>/属性里的 {{…}}，按提示替换后重渲
 - **粘贴到公众号后图片丢失**：粘的是本地路径版；改用 `article-gzh-embedded.html`（编辑器自动转存内嵌图）
 - **check_article.py 报「GZH_DESIGN_HOME 解析不到校验器」**：`GZH_DESIGN_HOME` 可指向校验器文件或
   gzh-design skill 目录（自动解析到 `scripts/validate_gzh_html.py`）；显式配置无效会直接判失败，

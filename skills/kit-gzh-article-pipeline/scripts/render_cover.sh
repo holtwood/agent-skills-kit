@@ -45,6 +45,17 @@ MISSING=$(grep -o 'src="img/[^"]*"' "$DIR/cover.html" | sed 's/src="//;s/"//' | 
 done)
 [ -z "$MISSING" ] || { echo "✗ cover.html 引用的图片不存在: $MISSING"; exit 1; }
 
+# ---- 占位符扫描：源码级，覆盖 style / 属性 / 正文（DOM innerText 看不到 <style>），排除说明注释 ----
+python3 - "$DIR/cover.html" <<'PY'
+import re, sys, pathlib
+t = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+t = re.sub(r"<!--.*?-->", "", t, flags=re.S)
+found = sorted(set(re.findall(r"\{\{[^}]*\}\}", t)))
+if found:
+    print("✗ cover.html 存在未替换的占位符（含样式/属性）: " + ", ".join(found))
+    sys.exit(1)
+PY
+
 ABS_DIR="$(cd "$DIR" && pwd)"
 
 # ---- 布局实测：注入测量脚本，dump-dom 取回 getBoundingClientRect / 图片加载 / 占位符 ----
@@ -60,7 +71,6 @@ inject = (
     "  if (covers[0]) { var r = covers[0].getBoundingClientRect(); o.cover = [r.width, r.height, r.top]; }\n"
     "  if (covers[1]) { var r2 = covers[1].getBoundingClientRect(); o.square = [r2.width, r2.height, r2.top]; }\n"
     "  o.imgs = Array.prototype.map.call(document.images, function(i){ return i.naturalWidth; });\n"
-    "  o.ph = document.body.innerText.indexOf('{{') > -1;\n"
     "  document.getElementById('wf-layout').textContent = JSON.stringify(o);\n"
     "});\n</script>\n"
 )
@@ -81,19 +91,17 @@ if not m or m.group(1).strip() in ("", "PENDING"):
     bad.append("未能取回布局测量结果（headless dump-dom 或 load 事件未执行）")
 else:
     o = json.loads(m.group(1))
-    cover, square, imgs, ph = o.get("cover"), o.get("square"), o.get("imgs"), o.get("ph")
+    cover, square, imgs = o.get("cover"), o.get("square"), o.get("imgs")
     if not cover or round(cover[0]) != 1800 or round(cover[1]) != 766:
         bad.append(f"头图区块实测 {cover}，应为 1800×766 —— cover.html 头图结构偏离模板")
     if not square or round(square[0]) != 1000 or round(square[1]) != 1000 or not (770 <= round(square[2]) <= 778):
         bad.append(f"方形区块实测 {square}，应为 1000×1000、top≈774 —— 方形区块结构偏离模板")
     if any(w <= 0 for w in (imgs or [])):
         bad.append(f"存在未加载成功的图片（naturalWidth={imgs}）")
-    if ph:
-        bad.append("页面仍含未替换的 {{占位符}}")
 if bad:
     print("\n".join("✗ " + b for b in bad))
     sys.exit(1)
-print("✅ 布局实测通过: 头图 1800×766 / 方形 1000×1000@774 / 图片全部加载 / 无占位符")
+print("✅ 布局实测通过: 头图 1800×766 / 方形 1000×1000@774 / 图片全部加载")
 PY
 rm -f "$ABS_DIR/.wf-dump.html"
 
