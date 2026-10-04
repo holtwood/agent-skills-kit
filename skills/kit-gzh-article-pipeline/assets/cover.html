@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<!-- 公众号头图模板 · 复制到文章目录后：① 全局替换 {{占位符}} ② 把 img/01-home.png、img/02-home-b.png
+     换成本篇截图（竖版手机截图，比例约 540:1166）③ 渲染: bash <skill>/scripts/render_cover.sh <文章目录>
+     结构约定: 头图区块 1800×766 + 顶部间距 8px 的 1000×1000 方形区块，页面总高 1780 —— 裁切脚本依赖此结构，勿改尺寸 -->
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; }
+  .cover {
+    width: 1800px; height: 766px; position: relative; overflow: hidden;
+    background: linear-gradient(135deg, {{主色}} 0%, {{主色深}} 62%, {{主色更深}} 100%);
+  }
+  .grid-deco {
+    position: absolute; inset: 0; opacity: 0.08;
+    background-image:
+      linear-gradient(#ffffff 1.5px, transparent 1.5px),
+      linear-gradient(90deg, #ffffff 1.5px, transparent 1.5px);
+    background-size: 88px 88px;
+    mask-image: linear-gradient(115deg, transparent 42%, #000 100%);
+    -webkit-mask-image: linear-gradient(115deg, transparent 42%, #000 100%);
+  }
+  .dot { position: absolute; border-radius: 50%; background: #fff; }
+  .copy { position: absolute; left: 104px; top: 0; height: 100%; display: flex; flex-direction: column; justify-content: center; }
+  .kicker { color: {{浅色文字}}; font-size: 30px; letter-spacing: 10px; font-weight: 500; margin-bottom: 30px; }
+  .title { color: #ffffff; font-size: 110px; font-weight: 700; letter-spacing: 6px; line-height: 1.08; }
+  .subtitle { margin-top: 34px; color: {{更浅文字}}; font-size: 42px; font-weight: 400; letter-spacing: 3px; }
+  .badge-row { margin-top: 44px; display: flex; gap: 20px; }
+  .badge { border: 2.5px solid rgba(255,255,255,0.55); color: #ffffff; border-radius: 999px;
+           padding: 12px 30px; font-size: 28px; letter-spacing: 2px; background: rgba(255,255,255,0.10); }
+  .phone { position: absolute; border-radius: 44px; border: 10px solid rgba(255,255,255,0.96);
+           box-shadow: 0 30px 70px rgba(0,0,0,0.35); overflow: hidden; background: #fff; }
+  .phone img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; }
+  .phone-back { width: 330px; height: 712px; right: -60px; top: 140px; transform: rotate(9deg); opacity: 0.92; }
+  .phone-front { width: 360px; height: 777px; right: 300px; top: 96px; transform: rotate(-5deg); }
+</style>
+</head>
+<body>
+  <div class="cover">
+    <div class="grid-deco"></div>
+    <div class="dot" style="width:16px;height:16px;left:704px;top:96px;opacity:.5;"></div>
+    <div class="dot" style="width:10px;height:10px;left:860px;top:620px;opacity:.4;"></div>
+
+    <div class="copy">
+      <div class="kicker">{{顶部标签，如 微信小程序}}</div>
+      <div class="title">{{产品名}}</div>
+      <div class="subtitle">{{一句话主张（与文章标题视角错开）}}</div>
+      <div class="badge-row">
+        <div class="badge">{{能力1}}</div>
+        <div class="badge">{{能力2}}</div>
+        <div class="badge">{{能力3}}</div>
+      </div>
+    </div>
+
+    <div class="phone phone-back"><img src="img/02-home-b.png"></div>
+    <div class="phone phone-front"><img src="img/01-home.png"></div>
+  </div>
+
+  <div class="cover square" style="width:1000px;height:1000px;margin-top:8px;">
+    <div class="grid-deco"></div>
+    <div class="dot" style="width:18px;height:18px;left:120px;top:130px;opacity:.5;"></div>
+    <div class="copy" style="left:0;right:0;align-items:center;text-align:center;">
+      <div class="kicker" style="letter-spacing:14px;">{{顶部标签，如 微信小程序}}</div>
+      <div class="title">{{产品名}}</div>
+      <div class="subtitle">{{一句话主张}}</div>
+    </div>
+    <div class="phone" style="width:330px;height:712px;left:50%;transform:translateX(-50%);bottom:-420px;">
+      <img src="img/01-home.png">
+    </div>
+  </div>
+</body>
+</html>

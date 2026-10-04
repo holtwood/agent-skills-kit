@@ -50,143 +50,146 @@
 ```markdown
 ---
 name: "kit-gzh-article-pipeline"
-description: "微信公众号文章全流程流水线（面向个人开发者的产品介绍/推广文）：选题排期 → 模拟器截图采集 → 去 AI 味写作 → 标题候选 → 头图渲染 → 组件库排版 → 双门禁终检 → 发布归档。触发场景：'给某个小程序写篇公众号文'、'发公众号'、'写一篇介绍文/推广文'、'起几个标题'、'排版成公众号格式'、'这期公众号写什么'。编排多个 skill 与外部工具，产出固定目录结构的成稿与可粘贴 HTML。"
+description: "为自有微信小程序或小游戏制作公众号产品介绍图文：交付底稿、真实截图、封面和可粘贴 HTML。用于完整成稿、已有公众号文章补图或改标题、以及文章工作区的选题排期与发布记录；普通网页排版、非自有产品的测评不适用。"
 ---
 
 # Kit GZH Article Pipeline · 公众号文章全流程
 
-把「给自家产品写一篇图文并茂、没有 AI 味的公众号文章」固化成八阶段流水线。设计原则只有两条：
+把「给自家产品写一篇图文并茂、没有 AI 味的公众号文章」固化成流水线。三条设计原则：
 
-- **确定性 > 生成式**：产品语义必须来自仓库 spec，截图必须来自真实模拟器，校验必须跑脚本
-- **数据与流程分离**：流程在本文件，数据（选题池/台账/成稿）在工作区，现场坑在 memory
+- **确定性 > 生成式**：产品能力主张必须有依据（spec / 代码 / 实拍画面），截图来自真实模拟器，门禁跑脚本
+- **流程 / 数据 / 现场分离**：流程在本文件；活数据在文章工作区（位置与产品映射由用户提供或见其 README）；
+  本机工具事实（clientName、具体接口故障）在对应机器的 memory，本文件只留通用原则
+- **按阶段局部进入**：用户已指定产品就跳过选题排期，已有标题就跳过候选生成——每个阶段都可独立执行
 
 ## 何时使用
 
-- 「给 XX 小程序写一篇公众号介绍文」（从零到可粘贴的完整成稿）
-- 「公众号排版」「转成公众号 HTML」（只跑阶段 5-6）
-- 「起几个公众号标题」（只跑阶段 3）
-- 「这期公众号写什么 / 该发哪篇了」（只跑阶段 0，读选题池）
-- 「公众号文章发布后记一下数据」（只跑阶段 8，写台账）
+- 「给 XX 小程序写一篇公众号介绍文」→ 完整走 0-6 阶段
+- 「这篇公众号文要补两张图 / 换个标题」→ 只进阶段 1 或 3
+- 「排版成公众号格式」→ 只进阶段 4-5
+- 「这期公众号写什么 / 发完记一下数据」→ 只进阶段 0 或 6 的台账部分
 
 ## 何时不要用
 
-- 只想要 Markdown 转普通网页 / 博客 HTML —— 用排版工具或直接写，不需要这条流水线
-- 想自动发布到公众号后台 —— 个人订阅号没有草稿箱 API（认证账号才有）；开发者工具 wechatide/MCP 无公众号能力。本 skill 的发布形态是「内嵌版 HTML 粘贴」，自动化边界见常见问题
-- 文案里需要产品 spec 里没有的功能 —— 先补 spec 再写，本 skill 禁止脑补产品能力
-- 视频号 / 抖音口播脚本 —— 超出范围
+- 普通网页 / 博客 HTML 排版 —— 不是公众号产物，不适用
+- 非自有产品的测评文 —— 素材来源与授权边界都不同
+- 自动发布到公众号后台 —— 个人订阅号没有草稿箱 API（认证账号才有）；开发者工具 wechatide/MCP
+  无公众号能力。发布形态是「内嵌版 HTML 粘贴进编辑器」，这是边界不是缺陷
+- 文案需要产品 spec 里没有的功能 —— **先核实能力是否已实现**（代码 / 测试 / 运行画面为准）；
+  文档滞后就先更新文档，但补文档不构成功能证据；未实现的能力不写成现有功能
 
-## 工作流（八阶段）
+## 工作流（七阶段）
 
 ### 阶段 0 · 选题与排期
 
-读 `articles/选题池.md`（topic-pool 格式，四维评分：热度 15 + 个人优势 15 + 信息差 10 + 时效性 10）。
-产品素材源头是各作品仓库的 `README.md` 与 `docs/design/product.md`，**语义必须对照 spec 核对**。
-红线：个人主体口径 —— 文中不出现「AI」表述；升级版才有的能力不写进当前版文案。
+读工作区 `选题池.md`（topic-pool 格式，四维评分）。动笔前先产出一张**事实表**：
+每条关键主张 → 依据（spec 章节 / 代码 / 测试 / 实拍截图 / 作者亲历）→ 适用版本。
+第一人称经历、人数、次数必须来自作者本人，不由痛点模板编造。
 
 ### 阶段 1 · 素材采集（截图）
 
-走微信开发者工具 CLI/MCP（须先过 `check_wechatide_status` 门禁；本机 clientName 实测 `Devin`）：
+**委托 wechatide-skill 执行**（登录态、开窗、自动化、截图都走它的 scene 工具；本 skill 不重复其文档）。
+本阶段约定：
 
-1. `open_project_window` → `simulator_refresh` → **等 6 秒**再操作（新开窗立即自动化必报 `page node not found`）
-2. 页面导航用 `automation_evaluate` 执行 `wx.navigateTo({url:...})` / `wx.navigateBack()`；
-   **不要用 `callMethod openRecent`**（内部等云端，会把整条命令挂死且退出码是 0，别信退出码）
-3. 预置表单：`automation_page_action --action setData --patch '{...}'` → `callMethod submit` 可真创建数据；
-   **用完必须删**（mock `showModal` 返回 `{"confirm":true}` + 触发删除方法，走完 restore）
-4. 每篇 4-6 张：首页（多模式则各一张）→ 使用/参与页 → 结果页；存 `<工作区>/<slug>/img/`，按叙事命名 `01-xx.png`
+- 新开窗 / 刚刷新后，**轮询页面就绪**（有上限，如 30 秒内能读到页面数据）再操作，不要盲等固定秒数
+- 页面导航优先 `automation_evaluate` 执行 `wx.navigateTo / wx.navigateBack`；
+  会等待云端响应的 callMethod（如按列表项打开详情）可能挂死整个调用且退出码为 0，避开这类入口
+- 预置表单可 `setData` + `callMethod submit` 真创建数据；**创建时记录其 ID，用完必须删除**
+  （mock 确认弹窗 + 触发删除，走完 restore）；中断恢复时先处理清理与 mock restore，再重跑
+- 模拟器无法复现的画面（真机专属体验），接受作者提供的真实截图
+- 每篇 4-6 张，按叙事命名 `01-xx.png` 存 `<文章目录>/img/`
 
 ### 阶段 2 · 写作（humanizer 规则落笔即遵守）
 
-结构模板：**场景痛点开头（具体到人数/条数）→ 功能叙事 2-4 段（每段配图）→ 产品原则（真实并列项）→ CTA → 带自嘲的结尾**。
-写作红线：无破折号 ——、无冒号 ：（含章节标题与图注）、无「不是A而是B」、结尾不升华；1200-1800 字；第一人称。
+起手结构（**默认骨架，不是硬模板**，随产品与题材变化，避免系列文一个模子）：
+场景痛点开头（具体到人数/条数）→ 功能叙事 2-4 段（每段配图）→ 产品原则（真实并列项）→ CTA → 收尾。
+写作红线来自 humanizer：无破折号 ——、无冒号 ：（含章节标题与图注）、无「不是A而是B」、结尾不升华；
+第一人称；字数遵循工作区编辑偏好。
 
 ### 阶段 3 · 标题
 
-用 content-headline-hacker 六触发器出 8-13 个候选（好奇心缺口/损失厌恶/社会认同/权威背书/稀缺/反常识），
-张力按 hook-level 2（punchy）起步，证据不足降 1（克制）。事实边界：`刚刚/全网/第一/榜首/变天`
-没有文章证据就不用；公众号 ≤30 字。**最终标题由用户确认**。封面大字与标题视角错开：标题卖「为什么点开」，
-封面卖「里面讲什么」。
+用 content-headline-hacker 六触发器出 **8-13 个候选**，张力按 hook-level 2（punchy）起步，
+证据不足降 1。事实边界：`刚刚/全网/第一/榜首/变天` 无文章证据就不用；公众号 ≤30 字；
+不做无实测依据的 CTR 预估。**候选写入 `<文章目录>/headlines.md`**（不写依赖默认的 output/ 目录），
+最终标题由用户确认。封面大字与标题视角错开：标题卖「为什么点开」，封面卖「里面讲什么」。
 
-### 阶段 4 · 配图
+### 阶段 4 · 排版与配图
 
-头图用 `scripts/render_cover.sh`（基于 `cover.html` 模板，改文案换截图后一键渲染 900×383 头图 + 500×500 次图）。
-正文截图宽 62%、max-width 320px 居中 + 12px 灰图注（图注同样无冒号无破折号）。
-可选增强：跨平台网页截图用 `kit-capture`，截图套壳美化用 `kit-shotframe`（与模拟器截图互补，非依赖）。
+- 头图：从本 skill `assets/cover.html` 复制模板到文章目录，替换占位符与本篇截图，
+  `scripts/render_cover.sh` 一键渲染 900×383@2x 头图 + 500×500 次图（结构偏离模板会直接报错）
+- 正文排版：gzh-design 主题库组件（主题与截图宽度等遵循工作区编辑偏好），组件**只从组件库取、不手写**
+- 产出两份：`article-gzh.html`（本地图片路径，存档）+ `article-gzh-embedded.html`（base64 内嵌，**粘贴用**）
 
-### 阶段 5 · 排版（gzh-design 摸鱼绿）
+### 阶段 5 · 双门禁终检（都过才算「成稿可交付」）
 
-组件一律从 gzh-design 主题库取、不手写；产品文配方：cover-breaking（有图版）→ toc-scroll →
-章节标题 PART 01..N + LAST → 段落 + 图片 → pill-list（原则清单）→ green-info → footer-cta。
-产出两份：`article-gzh.html`（本地路径，存档）与 `article-gzh-embedded.html`（base64 内嵌，**粘贴用这份**）。
+1. **统一门禁** `scripts/check_article.py <文章目录>`：可见文本（实体解码后）标点规则 / 图片完整性 /
+   双产物一致性 / gzh-design 校验（**警告同样视为失败**），任何失败退出码非 0
+2. **视觉验收**：Chrome headless 先 720px、再 390px（手机宽）各渲染一张人工过目；
+   通过条件：图片齐全、截图文字可读、裁切完整、图注与内容匹配、CTA 可见可用
 
-### 阶段 6 · 双门禁终检（都过才算完）
+### 阶段 6 · 发布与归档
 
-1. humanizer L1：`grep -n "——\|："` 于 HTML 正文 **零命中** + 禁用词表 + 通读（活人感）
-2. gzh-design 校验脚本 ERROR/警告清零 + Chrome headless 720px 渲染截图人工过目
-
-### 阶段 7 · 发布
-
-浏览器打开 embedded 版 → 全选复制 → 粘贴进公众号编辑器（图片自动转存素材库）→ 传头图 → 手机预览 → 群发。
-多平台图片口径：公众号/百家号/知乎编辑器自动转存粘贴图；**百家号等平台外链图会被剥离**；
-自有网站用对象存储图床（目录设公有读）。
-
-### 阶段 8 · 归档与复盘
-
-发布后在 `articles/发布台账.md` 记一行（日期/标题/平台/链接/48h 数据）；选题池状态流转
-（🟢 待写 → 🟡 排队 → ✅ 已发布）。新坑回写本机 memory，反复验证的升级回本文件。
+- 发布：浏览器打开 embedded 版 → 全选复制 → 粘贴进公众号编辑器（图片自动转存素材库）→ 传头图 →
+  手机预览（通过条件：图片齐全、文字可读、封面裁切正常、CTA 可用）→ 群发
+- 多平台图片口径等平台细节见文章工作区 README
+- 状态两段式：**成稿可交付**（阶段 5 通过即达成）与 **已发布**（真实发布后才算，链接由发布结果回填，
+  48h 数据稍后补录，不阻塞写文章任务）。发布后在 `发布台账.md` 记一行，选题池状态流转
 
 ## 命令契约
+
+所有路径相对 `<SKILL_ROOT>`（本文件所在目录），不依赖当前工作目录，也不假设唯一安装位置。
 
 ### scripts/render_cover.sh
 
 ```bash
-bash scripts/render_cover.sh <含 cover.html 的目录>     # 全流程：渲染 → 裁切 → 输出两图
-CHROME_BIN=/path/to/chrome bash scripts/render_cover.sh ./whenfree   # 指定浏览器
+bash <SKILL_ROOT>/scripts/render_cover.sh <文章目录>     # -h 看帮助
+CHROME_BIN=/path/to/chrome bash <SKILL_ROOT>/scripts/render_cover.sh <文章目录>
 ```
 
-| 参数 | 说明 |
-|---|---|
-| 第 1 参数 | 含 `cover.html` 与 `img/` 的文章目录 |
-| 环境变量 `CHROME_BIN` | 浏览器可执行文件；缺省按 macOS Chrome → chrome-headless-shell 顺序探测 |
+前置：文章目录含按 `assets/cover.html` 模板改好的 `cover.html`；依赖 Chrome/Chromium、python3 + Pillow
+（脚本自带预检）。退出码 0 成功 / 1 运行错误（含布局偏离模板）/ 2 参数错误。
 
-输出：`<dir>/img/cover.png`（1800×766，即 900×383@2x）、`<dir>/img/cover-square.png`（500×500）。
-依赖：Chrome/Chromium、Python3 + Pillow。要求 `cover.html` 含 1800×766 头图区块与顶部间距 8px 的
-1000×1000 方形区块（与本仓库范例同构）。
-
-### 外部校验命令（阶段 6 门禁）
+### scripts/check_article.py
 
 ```bash
-grep -n "——\|：" article-gzh.html            # 期望正文零命中（humanizer L1）
-python3 <gzh-design>/scripts/validate_gzh_html.py article-gzh.html   # 期望全绿
+python3 <SKILL_ROOT>/scripts/check_article.py <文章目录>   # --help 看全部检查项
 ```
+
+纯标准库实现。对 `article-gzh.html` 与 `article-gzh-embedded.html` 做文本规则 / 图片 / 一致性检查，
+并在能找到 gzh-design 时调用其校验器（警告=失败）。退出码 0 全过 / 1 有失败项 / 2 参数错误。
 
 ## 示例
 
 ```bash
-# 1. 渲染 whenfree 的头图
-bash skills/kit-gzh-article-pipeline/scripts/render_cover.sh ~/Dev/github/holtwood/wechat-miniprogram/articles/whenfree
+# 1. 渲染头图（模板已复制并填好占位符）
+bash <SKILL_ROOT>/scripts/render_cover.sh ~/articles/whenfree/2026-10-04-yue-shijian
 
-# 2. 发布前双门禁（在文章目录内）
-grep -n "——\|：" article-gzh.html; python3 ~/.agents/skills/gzh-design/scripts/validate_gzh_html.py article-gzh.html
+# 2. 发布前统一终检
+python3 <SKILL_ROOT>/scripts/check_article.py ~/articles/whenfree/2026-10-04-yue-shijian
 ```
 
 ## 实现说明
 
-- **依赖的外部 skill**（按名称装在 agent 的 skills 目录即可，本 skill 自动降级）：
-  `humanizer`（写作红线与自检，核心）、`gzh-design`（排版组件库与校验脚本，核心）、
-  `content-headline-hacker`（标题触发器）、`topic-pool`（选题池格式）
-- **依赖的外部工具**：微信开发者工具 + wechatide CLI/MCP（截图）、Chrome/Chromium（渲染）、Python3 + Pillow（裁切）
-- **产物工作区**：`articles/`，固定子结构见其 README.md（article.md / article-gzh.html /
-  article-gzh-embedded.html / cover.html / img/）。工作区不在本仓库——它是随文章增长的数据
-- **与 kit-capture / kit-shotframe 的边界**：本 skill 的截图走小程序模拟器（内容必须真实）；
-  kit-capture 管网页/桌面截图，kit-shotframe 管套壳美化，三者可组合但不互相依赖
+### 依赖契约（按阶段加载；使用前确认存在，缺失或改版时按本表执行，不承诺同等替代）
+
+| 依赖 | 角色 | 缺失 / 接口变更时 |
+|---|---|---|
+| humanizer | 写作红线与自检规则（阶段 2） | 保留底稿，执行本文件阶段 2 的最小编辑红线（标点/句式），并明确标记「需人工语感复核」，不得声称完成同等去味检查 |
+| gzh-design | 排版组件库 + 合规校验（阶段 4-5） | 保留 Markdown、图片与封面，**停止 HTML 交付**；除非另有已验证的备用模板，不得降级生成 HTML |
+| content-headline-hacker | 标题触发器（阶段 3） | 直接生成 8-13 个有正文依据的候选，写入文章目录 |
+| topic-pool | 选题池格式（阶段 0） | 用户已指定产品则跳过；需排期时按工作区现有格式直接读写 |
+| wechatide-skill | 模拟器截图与页面驱动（阶段 1） | 接受作者提供的真实截图（须为真实运行画面，禁止示意图） |
+
+- 与 `kit-capture`（网页/桌面截图）、`kit-shotframe`（截图套壳美化）可组合使用，但非本流水线依赖
+- 产物工作区（`articles/`）不在本仓库；其位置、产品映射、编辑偏好见该工作区的 README.md
 
 ## 常见问题
 
-- **自动化报 `page node not found`**：新开窗/刚刷新后立刻自动化所致。先 `simulator_refresh` 等 6 秒再操作
-- **callMethod 挂死但退出码 0**：方法内部在等云端。改用 `automation_evaluate` 执行 `wx.navigateTo` 直达目标页
-- **粘贴到公众号后图片丢失**：粘的是本地路径版。改用 `article-gzh-embedded.html`（base64 内嵌版，编辑器会自动转存）
-- **校验脚本报 `ModuleNotFoundError: PIL`**：`pip3 install Pillow`（gzh-design 校验与头图裁切共同依赖）
+- **自动化报 `page node not found`**：新开窗/刚刷新后立刻自动化所致——轮询页面就绪后再操作（见阶段 1）
+- **渲染报「渲染尺寸 != (1800,1780)」**：cover.html 结构偏离模板（区块尺寸或间距被改动），按 assets/ 模板重对齐
+- **粘贴到公众号后图片丢失**：粘的是本地路径版；改用 `article-gzh-embedded.html`（编辑器自动转存内嵌图）
+- **check_article.py 报「未找到 gzh-design 校验器」**：设置 `GZH_DESIGN_HOME` 指向 gzh-design skill 目录，
+  或确认其安装于标准 skills 目录；该项缺失时门禁会跳过并提示，属降级运行
 
 ```
-
 > 内联版本基于提交时点；评审时若仓库有更新，以仓库为准。

@@ -15,7 +15,7 @@
 | [`kit-project-hub`](./skills/kit-project-hub/) | 名下仓库 → 导航站，精选区 + 每周审计 |
 | [`kit-wechat-miniapp-ui-optimizer`](./skills/kit-wechat-miniapp-ui-optimizer/) | 原生微信小程序 UI 诊断：WXML/WXSS、页面/组件、主题、安全区、资源与状态 |
 | [`kit-wechat-minigame-ui-optimizer`](./skills/kit-wechat-minigame-ui-optimizer/) | 微信小游戏 Canvas UI 诊断：HUD、触摸命中区、分辨率适配、贴图、状态与帧率线索 |
-| [`kit-gzh-article-pipeline`](./skills/kit-gzh-article-pipeline/) | 公众号文章全流程：选题排期 → 模拟器截图 → 去 AI 味写作 → 标题候选 → 头图渲染 → 摸鱼绿排版 → 双门禁终检 → 发布归档 |
+| [`kit-gzh-article-pipeline`](./skills/kit-gzh-article-pipeline/) | 公众号文章全流程（七阶段）：选题排期 → 截图采集 → 去 AI 味写作 → 标题候选 → 排版与配图 → 双门禁终检 → 发布归档 |
 
 ## 安装
 
