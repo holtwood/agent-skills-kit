@@ -54,7 +54,7 @@ description: "为自有微信小程序或小游戏制作公众号产品介绍图
 起手结构（**默认骨架，不是硬模板**，随产品与题材变化，避免系列文一个模子）：
 场景痛点开头（具体到人数/条数）→ 功能叙事 2-4 段（每段配图）→ 产品原则（真实并列项）→ CTA → 收尾。
 写作红线来自 humanizer：无破折号 ——、无冒号 ：（含章节标题与图注）、无「不是A而是B」、结尾不升华；
-第一人称；字数遵循工作区编辑偏好。
+人称与篇幅遵循工作区编辑偏好。
 
 ### 阶段 3 · 标题
 
@@ -66,16 +66,22 @@ description: "为自有微信小程序或小游戏制作公众号产品介绍图
 ### 阶段 4 · 排版与配图
 
 - 头图：从本 skill `assets/cover.html` 复制模板到文章目录，替换占位符与本篇截图，
-  `scripts/render_cover.sh` 一键渲染 900×383@2x 头图 + 500×500 次图（结构偏离模板会直接报错）
+  `scripts/render_cover.sh` 一键渲染 900×383@2x 头图 + 500×500 次图。渲染前用 DOM 实测区块几何
+  （头图 1800×766、方图 1000×1000、间距 8px）、验证图片已加载且占位符已替换；
+  模板结构被改动会直接报错，窗口尺寸检查只作辅助
 - 正文排版：gzh-design 主题库组件（主题与截图宽度等遵循工作区编辑偏好），组件**只从组件库取、不手写**
 - 产出两份：`article-gzh.html`（本地图片路径，存档）+ `article-gzh-embedded.html`（base64 内嵌，**粘贴用**）
 
 ### 阶段 5 · 双门禁终检（都过才算「成稿可交付」）
 
-1. **统一门禁** `scripts/check_article.py <文章目录>`：可见文本（实体解码后）标点规则 / 图片完整性 /
-   双产物一致性 / gzh-design 校验（**警告同样视为失败**），任何失败退出码非 0
+1. **统一门禁** `scripts/check_article.py <文章目录>`：可见文本（实体解码后）标点规则 / 图片完整性
+   （含 base64 严格解码与魔数）/ 双产物正文与图片逐项一致 / 非空正文 / 禁用标签 / gzh-design 校验
+   （**警告同样视为失败；校验器缺失 = 失败，不跳过**），任何失败退出码非 0
 2. **视觉验收**：Chrome headless 先 720px、再 390px（手机宽）各渲染一张人工过目；
    通过条件：图片齐全、截图文字可读、裁切完整、图注与内容匹配、CTA 可见可用
+
+**局部更新同样过门禁**：补图、改标题、换封面后，同步更新受影响的底稿、HTML 与封面，重跑本阶段；
+只重跑部分阶段不算完成，交付看的是最新一次阶段 5 的结果。
 
 ### 阶段 6 · 发布与归档
 
@@ -105,8 +111,13 @@ CHROME_BIN=/path/to/chrome bash <SKILL_ROOT>/scripts/render_cover.sh <文章目�
 python3 <SKILL_ROOT>/scripts/check_article.py <文章目录>   # --help 看全部检查项
 ```
 
-纯标准库实现。对 `article-gzh.html` 与 `article-gzh-embedded.html` 做文本规则 / 图片 / 一致性检查，
-并在能找到 gzh-design 时调用其校验器（警告=失败）。退出码 0 全过 / 1 有失败项 / 2 参数错误。
+纯标准库实现。对 `article-gzh.html` 与 `article-gzh-embedded.html` 做文本规则 / 图片完整性 /
+双产物一致性 / 非空正文 / 禁用标签检查，并调用 gzh-design 校验器（警告=失败；
+**校验器缺失 = 失败**，与依赖契约一致）。退出码 0 全过 / 1 有失败项 / 2 参数错误。
+
+**回归测试**：`python3 <SKILL_ROOT>/tests/regression.py`——两轮外部评审的全部假通过反例都已固化
+（缺图、单引号路径、损坏 base64、实体冒号、正文不一致、禁用标签、空正文、图片数量与内容不一致、
+占位符残留、校验器缺失等），**改 check_article.py 后必跑且必须全绿**。
 
 ## 示例
 
@@ -125,7 +136,7 @@ python3 <SKILL_ROOT>/scripts/check_article.py ~/articles/whenfree/2026-10-04-yue
 | 依赖 | 角色 | 缺失 / 接口变更时 |
 |---|---|---|
 | humanizer | 写作红线与自检规则（阶段 2） | 保留底稿，执行本文件阶段 2 的最小编辑红线（标点/句式），并明确标记「需人工语感复核」，不得声称完成同等去味检查 |
-| gzh-design | 排版组件库 + 合规校验（阶段 4-5） | 保留 Markdown、图片与封面，**停止 HTML 交付**；除非另有已验证的备用模板，不得降级生成 HTML |
+| gzh-design | 排版组件库 + 合规校验（阶段 4-5） | 保留 Markdown、图片与封面，**停止 HTML 交付**；除非另有已验证的备用模板，不得降级生成 HTML。终检时校验器不可用同样视为失败 |
 | content-headline-hacker | 标题触发器（阶段 3） | 直接生成 8-13 个有正文依据的候选，写入文章目录 |
 | topic-pool | 选题池格式（阶段 0） | 用户已指定产品则跳过；需排期时按工作区现有格式直接读写 |
 | wechatide-skill | 模拟器截图与页面驱动（阶段 1） | 接受作者提供的真实截图（须为真实运行画面，禁止示意图） |
@@ -138,5 +149,6 @@ python3 <SKILL_ROOT>/scripts/check_article.py ~/articles/whenfree/2026-10-04-yue
 - **自动化报 `page node not found`**：新开窗/刚刷新后立刻自动化所致——轮询页面就绪后再操作（见阶段 1）
 - **渲染报「渲染尺寸 != (1800,1780)」**：cover.html 结构偏离模板（区块尺寸或间距被改动），按 assets/ 模板重对齐
 - **粘贴到公众号后图片丢失**：粘的是本地路径版；改用 `article-gzh-embedded.html`（编辑器自动转存内嵌图）
-- **check_article.py 报「未找到 gzh-design 校验器」**：设置 `GZH_DESIGN_HOME` 指向 gzh-design skill 目录，
-  或确认其安装于标准 skills 目录；该项缺失时门禁会跳过并提示，属降级运行
+- **check_article.py 报「GZH_DESIGN_HOME 解析不到校验器」**：`GZH_DESIGN_HOME` 可指向校验器文件或
+  gzh-design skill 目录（自动解析到 `scripts/validate_gzh_html.py`）；显式配置无效会直接判失败，
+  不回退其他安装副本。按依赖契约，校验器缺失 = 终检失败——此时应安装 gzh-design 或修复配置，而不是绕过门禁

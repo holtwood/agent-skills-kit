@@ -8,13 +8,13 @@
 #   bash render_cover.sh -h | --help
 #
 # 约定: <dir>/cover.html 与 assets/cover.html 模板同构 —— 头图区块 1800×766，
-#       方形区块 1000×1000、与头图间距 8px；页面总高 1780。
+#       方形区块 1000×1000、与头图间距 8px（getBoundingClientRect 实测校验）。
 # 输出: <dir>/img/cover.png、<dir>/img/cover-square.png
-# 退出码: 0 成功 / 1 运行时错误 / 2 参数错误
+# 退出码: 0 成功 / 1 运行时错误（含布局/资源/占位符检查不过）/ 2 参数错误
 #
 set -euo pipefail
 
-usage() { sed -n '2,12p' "$0"; exit "${1:-0}"; }
+usage() { sed -n '2,13p' "$0"; exit "${1:-0}"; }
 case "${1:-}" in
   -h|--help) usage 0 ;;
   "") echo "✗ 缺少参数：<含 cover.html 的文章目录>"; usage 2 >&2 ;;
@@ -46,18 +46,69 @@ done)
 [ -z "$MISSING" ] || { echo "✗ cover.html 引用的图片不存在: $MISSING"; exit 1; }
 
 ABS_DIR="$(cd "$DIR" && pwd)"
+
+# ---- 布局实测：注入测量脚本，dump-dom 取回 getBoundingClientRect / 图片加载 / 占位符 ----
+python3 - "$ABS_DIR" <<'PY'
+import pathlib, sys
+d = pathlib.Path(sys.argv[1])
+t = (d / "cover.html").read_text(encoding="utf-8")
+inject = (
+    '<pre id="wf-layout" style="display:none">PENDING</pre>\n<script>\n'
+    "window.addEventListener('load', function(){\n"
+    "  var o = {};\n"
+    "  var covers = document.querySelectorAll('.cover');\n"
+    "  if (covers[0]) { var r = covers[0].getBoundingClientRect(); o.cover = [r.width, r.height, r.top]; }\n"
+    "  if (covers[1]) { var r2 = covers[1].getBoundingClientRect(); o.square = [r2.width, r2.height, r2.top]; }\n"
+    "  o.imgs = Array.prototype.map.call(document.images, function(i){ return i.naturalWidth; });\n"
+    "  o.ph = document.body.innerText.indexOf('{{') > -1;\n"
+    "  document.getElementById('wf-layout').textContent = JSON.stringify(o);\n"
+    "});\n</script>\n"
+)
+low = t.lower()
+(d / ".wf-check.html").write_text(t.replace("</body>", inject + "</body>") if "</body>" in low else t + inject,
+                                  encoding="utf-8")
+PY
+DUMP=$("$CHROME" --headless=new --disable-gpu --dump-dom --virtual-time-budget=10000 \
+       "file://$ABS_DIR/.wf-check.html" 2>/dev/null || true)
+rm -f "$ABS_DIR/.wf-check.html"
+printf '%s' "$DUMP" > "$ABS_DIR/.wf-dump.html"
+python3 - "$ABS_DIR/.wf-dump.html" <<'PY'
+import json, re, sys, pathlib
+dump = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+m = re.search(r'<pre id="wf-layout"[^>]*>(.*?)</pre>', dump, re.S)
+bad = []
+if not m or m.group(1).strip() in ("", "PENDING"):
+    bad.append("未能取回布局测量结果（headless dump-dom 或 load 事件未执行）")
+else:
+    o = json.loads(m.group(1))
+    cover, square, imgs, ph = o.get("cover"), o.get("square"), o.get("imgs"), o.get("ph")
+    if not cover or round(cover[0]) != 1800 or round(cover[1]) != 766:
+        bad.append(f"头图区块实测 {cover}，应为 1800×766 —— cover.html 头图结构偏离模板")
+    if not square or round(square[0]) != 1000 or round(square[1]) != 1000 or not (770 <= round(square[2]) <= 778):
+        bad.append(f"方形区块实测 {square}，应为 1000×1000、top≈774 —— 方形区块结构偏离模板")
+    if any(w <= 0 for w in (imgs or [])):
+        bad.append(f"存在未加载成功的图片（naturalWidth={imgs}）")
+    if ph:
+        bad.append("页面仍含未替换的 {{占位符}}")
+if bad:
+    print("\n".join("✗ " + b for b in bad))
+    sys.exit(1)
+print("✅ 布局实测通过: 头图 1800×766 / 方形 1000×1000@774 / 图片全部加载 / 无占位符")
+PY
+rm -f "$ABS_DIR/.wf-dump.html"
+
+# ---- 渲染与裁切（窗口尺寸检查保留作辅助；真正的布局信任来自上面的 DOM 实测） ----
 "$CHROME" --headless=new --disable-gpu --hide-scrollbars \
   --screenshot="$ABS_DIR/cover-full.png" --window-size=1800,1780 \
   "file://$ABS_DIR/cover.html" 2>/dev/null
 
-# ---- 布局验证：整页必须是 1800×1780，否则模板结构被改动，裁切坐标不可信 ----
 python3 - "$ABS_DIR" <<'PY'
 import sys
 from PIL import Image
 d = sys.argv[1]
 im = Image.open(f"{d}/cover-full.png")
 if im.size != (1800, 1780):
-    sys.exit(f"✗ 渲染尺寸 {im.size} != (1800,1780)，cover.html 结构偏离模板，裁切坐标不可信")
+    sys.exit(f"✗ 截图尺寸 {im.size} != (1800,1780)，渲染环境异常")
 im.crop((0, 0, 1800, 766)).save(f"{d}/img/cover.png")
 im.crop((0, 774, 1000, 1774)).resize((500, 500), Image.LANCZOS).save(f"{d}/img/cover-square.png")
 PY
