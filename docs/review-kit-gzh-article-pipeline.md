@@ -129,6 +129,8 @@ description: "为自有微信小程序或小游戏制作公众号产品介绍图
    禁用标签 / gzh-design 校验（**警告同样视为失败；校验器缺失 = 失败，不跳过**），任何失败退出码非 0
 2. **视觉验收**：Chrome headless 先 720px、再 390px（手机宽）各渲染一张人工过目；
    通过条件：图片齐全、截图文字可读、裁切完整、图注与内容匹配、CTA 可见可用
+3. **人工终审**：对照阶段 0 的事实表通读正文，检查标题是否兑现、有无虚构经历、语感是否自然——
+   事实准确性与文风自然度由人负责，机器门禁不覆盖这一层
 
 **局部更新同样过门禁**：补图、改标题、换封面后，同步更新受影响的底稿、HTML 与封面，重跑本阶段；
 只重跑部分阶段不算完成，交付看的是最新一次阶段 5 的结果。
@@ -160,6 +162,12 @@ CHROME_BIN=/path/to/chrome bash <SKILL_ROOT>/scripts/render_cover.sh <文章目�
 ```bash
 python3 <SKILL_ROOT>/scripts/check_article.py <文章目录>   # --help 看全部检查项
 ```
+
+| 参数 | 说明 |
+|---|---|
+| 第 1 参数 | 含 `article-gzh.html` 与 `article-gzh-embedded.html` 的文章目录 |
+| `--html` / `--embedded` | 自定义两份产物的文件名（默认同上） |
+| 环境变量 `GZH_DESIGN_HOME` | 校验器文件或 gzh-design skill 目录（自动解析）；显式配置无效即失败 |
 
 标准库 + Pillow（图片实际解码）。对 `article-gzh.html` 与 `article-gzh-embedded.html` 做文本规则 /
 图片完整性 / 双产物一致性 / 非空正文 / 禁用标签检查，并调用 gzh-design 校验器（警告=失败；
@@ -198,9 +206,8 @@ python3 <SKILL_ROOT>/scripts/check_article.py ~/articles/whenfree/2026-10-04-yue
 ## 常见问题
 
 - **自动化报 `page node not found`**：新开窗/刚刷新后立刻自动化所致——轮询页面就绪后再操作（见阶段 1）
-- **渲染报「截图尺寸 != (1800,1780)」**：渲染环境异常（非模板问题），重试或检查 CHROME_BIN；
-  模板结构偏离由 DOM 实测拦截（错误信息会给出实测几何值）
-- **渲染报「存在未替换的占位符（含样式/属性）」**：源码级扫描抓到了 <style>/属性里的 {{…}}，按提示替换后重渲
+- **封面渲染报错（截图尺寸异常 / 占位符未替换 / 布局偏离模板）**：三者来源不同——截图尺寸异常是渲染环境问题
+  （重试或检查 CHROME_BIN）；占位符与布局报错是 cover.html 本身，按错误信息给出的实测值对照 assets/ 模板修正
 - **粘贴到公众号后图片丢失**：粘的是本地路径版；改用 `article-gzh-embedded.html`（编辑器自动转存内嵌图）
 - **check_article.py 报「GZH_DESIGN_HOME 解析不到校验器」**：`GZH_DESIGN_HOME` 可指向校验器文件或
   gzh-design skill 目录（自动解析到 `scripts/validate_gzh_html.py`）；显式配置无效会直接判失败，
