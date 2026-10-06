@@ -31,13 +31,14 @@ python3 <SKILL_ROOT>/scripts/article_bundle.py init /path/to/article --slug my-a
 python3 <SKILL_ROOT>/scripts/article_bundle.py check /path/to/article --json
 python3 <SKILL_ROOT>/scripts/article_bundle.py astro /path/to/article
 bash <SKILL_ROOT>/scripts/render_cover.sh /path/to/article
+python3 <SKILL_ROOT>/scripts/embed_images.py /path/to/article
 python3 <SKILL_ROOT>/scripts/check_article.py /path/to/article --json
 ```
 
 - 封面输入为文章目录的 `cover.html`，模板在 [assets/cover.html](assets/cover.html)。需要 Chrome/Chromium、Python 3 与 Pillow；输出 `img/cover.png` 和 `img/cover-square.png`。
-- 工作区脚本只需 Python 3，负责脚手架、清单和 Astro frontmatter，不生成或评价文章质量。机器检查通过不等于事实已核验、Astro 构建通过或文章已发布。
+- `embed_images.py` 负责将 `article-gzh.html` 转化为可直接全选粘贴进公众号后台的 Base64 内联产物 `article-gzh-embedded.html`，并自动确保 span leaf 与平台规范合规，杜绝图片裂开与手动重复上传。
 - 终检默认检查 `article-gzh.html` 与 `article-gzh-embedded.html`；`--html`/`--embedded` 可改文件名。`--text-policy legacy` 启用历史标点限制；默认 `standard` 只查结构与完整性。`--json` 输出机器可读结果。
 - `GZH_DESIGN_HOME` 指校验器文件或 skill 目录；显式路径无效、校验器警告/失败/超时均视为未通过，不回退绕过。
 - 退出码 0 成功、1 检查/运行失败、2 参数错误。修改公众号脚本后运行 `python3 <SKILL_ROOT>/tests/regression.py`；多平台脚本用 `python3 <SKILL_ROOT>/tests/test_bundle.py`。
 
-发布前仍要核对编辑器中的图片、封面裁切和 CTA。内嵌图片能否转存取决于实际编辑器行为，必须以预览验证，不能保证粘贴即成功。
+发布前在浏览器打开 `article-gzh-embedded.html`，Cmd+A / Cmd+C 复制直接粘入微信公众号后台，核对图片与样式。

@@ -125,6 +125,12 @@ md2wechat 的知乎/头条能力按上游 [跨平台工作流](https://github.co
   - [wechat-typesetting-cy](https://github.com/CY-CHENYUE/wechat-typesetting-cy)：「无模板」流派——每篇按 5 问现场推导设计（气质/信息形状/节奏/配色/形态语言），硬规则仅两条：微信兼容 + **内容零改动**（不自拟小标题、不造摘要、组件不携新文字）。其「内容零改动」比我们原装饰槽规则更严，已吸收为「叙述性文字优先原稿语句原位升格」。
   - [xiaowan-wechat-layout-skill](https://github.com/cyberxiaowan/xiaowan-wechat-layout-skill)：gzh-design 的真机反馈增强层——首屏完整信息单元、大章节可见性、线条色块密度、标题折行难看等检查项，已吸收进 delivery.md 手机预览清单。
   - 工具层事实标准：[doocs/md](https://github.com/doocs/md)（13k★ MD→公众号编辑器）；社区共识参数：正文 14-15px、字距 1-1.5px、行距 1.5-2、全文 ≤3 色、两端对齐。
+- **内容层：观点与信息增量（本轮专题）**：
+  - [Paul Graham《How to Write Usefully》](https://www.paulgraham.com/useful.html)：文章有用 = 正确×新颖×重要×简洁的乘积——「主张放到不出错的最强程度」「告诉读者不知道的（最高级：心里有但说不出的）」「以自己为重要性代理」「没从写作过程学到东西就不要发」。writing.md 新增「内容与观点」节以此为北极星，对抗审校加「增量攻击」面。
+  - 分析写作方法（Writing Analytically 中文课程版）：**So What 链**（追问「那又怎样」直到触及机制/结构层；答不上来处即意义缺口）与**演进式论题**（先写最兴奋的段、归纳↔演绎回切、开头邀请不剧透、结尾论题比开头更准）。已入 writing.md。
+  - 腾讯 skillhub 内容层方案：财新 skill **Step 0 选题审视**（搜前 10 条看角度分布，7/10 同角度即同质化，找异类角度）+ **T1–T4 信源分级**；科技公众号写作「用户的输入是线索不是边界」+ 半自动选题 3–5 角度；gzh-copywriter 差异化四问（输入/流程/输出/定位）。已入 writing.md 与 production.md 采访节。
+  - 想法层同质化实证：[CST 研究](https://arxiv.org/html/2402.01536)（ChatGPT 用户点子更雷同且归属感更低）、[Sui Generis](https://www.pnas.org/doi/10.1073/pnas.2504966122)（PNAS，LLM 情节点跨代重复）、diversity growth rate 度量——观点与意外必须来自作者材料与采访，AI 只负责说清楚。「想法的所有权在作者」已写入 writing.md。
+  - 国外 skill 参照：[content-research-writer](https://raw.githubusercontent.com/ComposioHQ/awesome-claude-skills/master/content-research-writer/SKILL.md)（协作大纲/钩子/分节反馈）、[crafting-portfolio-essays](https://github.com/lucasyhzhu-debug/crafting-portfolio-essays)（「声音不是发明的是提取的」——先问样稿与口述再写，六种 essay 原型）。
 
 ## 验证记录
 
