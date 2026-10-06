@@ -140,6 +140,44 @@ class ProseLintTests(unittest.TestCase):
         r = self.run_lint()
         self.assertNotIn("时代开场", r.stdout)
 
+    def test_meme_and_clickbait_fingerprints(self):
+        self.write("家人们这个工具绝绝子，简直是天花板。\n万万没想到，速看这篇。\n")
+        r = self.run_lint()
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("网络热梗", r.stdout)
+        self.assertIn("标题党句式", r.stdout)
+
+    def test_term_dense_paragraph(self):
+        self.write("服务用 FastAPI 起，前面挂 Nginx，数据进 PostgreSQL，缓存走 Redis。\n")
+        r = self.run_lint()
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("术语密集", r.stdout)
+
+    def test_term_sparse_paragraph_ok(self):
+        self.write("这块用 GPU 和 CUDA 就够了，不用多想。\n")
+        r = self.run_lint()
+        self.assertNotIn("术语密集", r.stdout)
+
+    def test_code_block_terms_not_counted(self):
+        self.write("```\nimport numpy\nimport pandas\nimport torch\nimport tensorflow\n```\n正文一句话。\n")
+        r = self.run_lint()
+        self.assertNotIn("术语密集", r.stdout)
+
+    def test_long_paragraph(self):
+        self.write("开头一句。" + "这一段写得很长，" * 30 + "收尾。\n")
+        r = self.run_lint()
+        self.assertIn("长段", r.stdout)
+
+    def test_short_paragraph_ok(self):
+        self.write("就一句话。\n")
+        r = self.run_lint()
+        self.assertNotIn("长段", r.stdout)
+
+    def test_exclaim_overuse(self):
+        self.write("太棒了！这个功能好用！大家一定要试试！\n")
+        r = self.run_lint()
+        self.assertIn("感叹号偏多", r.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()

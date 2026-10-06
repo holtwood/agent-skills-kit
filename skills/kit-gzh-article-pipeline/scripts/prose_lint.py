@@ -9,7 +9,9 @@
      （不难发现/至关重要/不容忽视）、万能动词（进行了研究）、互联网黑话（赋能/抓手/闭环）、
      客套升华（拭目以待/未来可期）、AI 元话语泄漏（作为AI/截至我的知识/训练数据）、
      前景套话（尽管X有其意义…面临的挑战）、时代开场（随着…的发展）、元叙述（本文将）、
-     夸大词（颠覆/革命性）、广告法风险（全网第一/100%/稳赚）。--dict 可追加自定义词表，每行一条。
+     夸大词（颠覆/革命性）、广告法风险（全网第一/100%/稳赚）、
+     网络热梗（家人们/绝绝子/yyds/封神）、标题党句式（震惊/万万没想到/速看）。
+     --dict 可追加自定义词表，每行一条。
   2. 虚胖量化：整句含「大幅/显著/明显」等量化词但无任何数字（含中文数字）。
   3. 抽象名词化：全文「X性」词 ≥4 处（JCSA 2026 中文实证：稳定性/适用性式名词化）。
   4. 过渡词堆叠：句首「此外/因此/同时/然而」式书面过渡 ≥3 处。
@@ -17,6 +19,9 @@
   6. 句首复读：相邻句共享 ≥3 字前缀的连续 3 句以上。
   7. 句长方差（burstiness）：报告句长均值与变异系数 CV。真人 CV≈0.45，AI 稿常 <0.38；
      <0.28 提示节奏过平（需 ≥10 句才检查，仅参考不单独判失败）。
+  8. 术语密集：单段去重英文术语 ≥4 个（URL 不计），提示按「名字→人话→类比」三步走。
+  9. 长段：单段去空白 >150 字（手机上约超 5 行），提示拆段。
+ 10. 感叹号偏多：全文「！/!」≥3 处，有趣靠内容不靠语气。
 
 原则: 命中词表是复查线索——「闭环控制」「进行了实验」在真实语境可以完全正常，
       由人判断去留。默认只报告；--strict 时任何指纹命中使退出码为 1。
@@ -43,6 +48,8 @@ FINGERPRINTS = [
     (r"本文将|接下来(让我们|我们将)|让我们一起(来)?(看看|探索|了解)|下面(就)?(逐一|一起来)", "元叙述", "删掉预告，直接开始讲"),
     (r"颠覆(性)?|革命性|彻底改变|重新定义|划时代", "夸大词", "写清具体改变了哪一步"),
     (r"全网(最|第一|首发)|史上最|100%|百分之百|稳赚|包过|根治|零风险|国家级|顶级|首选", "广告法风险", "绝对化/收益承诺表达，各平台审核敏感，删或改为有依据的表述"),
+    (r"家人们|绝绝子|yyds|YYDS|拿捏|天花板|封神|炸裂", "网络热梗", "简洁雅致的号不靠热梗制造有趣，换成反差、细节或准确比喻"),
+    (r"震惊|竟然|万万没想到|建议收藏|速看", "标题党句式", "虚张声势，删掉或改成具体事实"),
 ]
 # 无数字量化词：整句出现模糊量化但没有任何数字（含中文数字），属于「虚胖主张」
 VAGUE_QUANT = re.compile(r"大幅|显著|明显|极大|极多|大量|不少|众多|诸多|广泛|充分|深入")
@@ -63,6 +70,14 @@ SENT_SPLIT = re.compile(r"(?<=[。！？!?…])")
 OPENER_PREFIX = 3
 OPENER_RUN = 3
 CV_MIN_SENTS = 10
+# 术语密度：一段里新英文术语太多读者会掉队；URL 不算术语（先剥掉再数）
+TERM_URL = re.compile(r"https?://\S+")
+TERM = re.compile(r"[A-Za-z][A-Za-z0-9+#.\-]*[A-Za-z0-9+#]")
+TERM_DENSE_MIN = 4
+# 长段：去空白 >150 字在手机上约超 5 行，读者开始跳读
+LONG_PARA = 150
+EXCLAIM = re.compile(r"[！!]")
+EXCLAIM_MIN = 3
 
 
 def _prefix_len(a: str, b: str) -> int:
@@ -167,6 +182,29 @@ def lint(path: str, extra_patterns: list) -> dict:
             findings.append({"kind": "burstiness", "cat": "句长过平",
                              "text": f"CV={cv:.2f}", "line": 0,
                              "hint": "长短句错落才是真人节奏，看是否有意保留短句"})
+
+    for i, para in enumerate(lines):
+        terms, seen_terms = [], set()
+        for m in TERM.finditer(TERM_URL.sub("", para)):
+            t = m.group(0)
+            if t.lower() not in seen_terms:
+                seen_terms.add(t.lower())
+                terms.append(t)
+        if len(terms) >= TERM_DENSE_MIN:
+            findings.append({"kind": "term-dense", "cat": "术语密集",
+                             "text": "、".join(terms[:5]), "line": i + 1,
+                             "hint": "一段里新术语太多，按 explain.md 术语三步走：名字→一句人话→必要时类比，或换大白话"})
+        stripped = re.sub(r"\s", "", para)
+        if len(stripped) > LONG_PARA:
+            findings.append({"kind": "long-paragraph", "cat": "长段",
+                             "text": stripped[:16], "line": i + 1,
+                             "hint": "手机上约超过 5 行，考虑拆段或让关键句单独成段"})
+
+    exclaim = len(EXCLAIM.findall(joined))
+    if exclaim >= EXCLAIM_MIN:
+        findings.append({"kind": "exclaim", "cat": "感叹号偏多",
+                         "text": f"{exclaim} 处感叹号", "line": 0,
+                         "hint": "有趣靠内容不靠语气，保留最多一两处"})
     return {"file": path, "stats": stats, "findings": findings}
 
 
