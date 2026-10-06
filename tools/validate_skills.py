@@ -69,6 +69,9 @@ def validate(skill: Path) -> list[str]:
         if doc in seen:
             continue
         seen.add(doc)
+        for script in re.findall(r"<SKILL_ROOT>/(scripts/[\w./-]+)", doc.read_text(encoding="utf-8")):
+            if not (skill / script).is_file():
+                errors.append(f"{doc}: 命令引用了不存在的脚本: {script}")
         for linked in local_links(doc):
             if not linked.is_relative_to(skill.resolve()):
                 errors.append(f"{doc}: 资源链接越出 skill 目录: {linked}")
@@ -79,9 +82,6 @@ def validate(skill: Path) -> list[str]:
     for reference in (skill / "references").glob("*.md"):
         if reference.resolve() not in seen:
             errors.append(f"{reference}: 没有从入口可达的链接")
-    for script in re.findall(r"<SKILL_ROOT>/(scripts/[\w./-]+)", text):
-        if not (skill / script).is_file():
-            errors.append(f"{entry}: 命令引用了不存在的脚本: {script}")
     return errors
 
 

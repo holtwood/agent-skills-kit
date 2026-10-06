@@ -31,6 +31,17 @@ def main():
         with Image.open(work / 'og.png') as im:
             im.load()
             assert im.size == (output['width'], output['height'])
+            assert any(lo != hi for lo, hi in im.convert('RGB').getextrema()), 'blank rendered image'
+        transparent_command = ['node', str(ROOT / 'skills/kit-shotframe/scripts/frame.js'),
+                               '--input', str(ROOT / 'docs/screenshots/device-iphone.png'),
+                               '--preset', 'macos', '--transparent', '--output', str(work / 'alpha.png'), '--json']
+        if chromium:
+            transparent_command += ['--chromium', chromium]
+        alpha = subprocess.run(transparent_command, capture_output=True, text=True, timeout=90)
+        assert alpha.returncode == 0, alpha.stdout + alpha.stderr
+        with Image.open(work / 'alpha.png') as im:
+            im.load()
+            assert im.mode == 'RGBA' and im.getpixel((0, 0))[3] == 0, 'missing transparency'
         page = work / 'fixture.html'
         page.write_text('<html><body><h1>Local capture fixture</h1></body></html>', encoding='utf-8')
         env = dict(os.environ)

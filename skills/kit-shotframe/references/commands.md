@@ -25,7 +25,7 @@ node <SKILL_ROOT>/scripts/frame.js \
 | `--bg` | 背景：命名渐变预设（`aurora`/`sky`/`sunset`/`ocean`/`lavender`/`forest`/`candy`/`slate`/`mono`，随 `--theme` 取深浅变体）、`solid:#0f172a`、`linear:#a8edea,#fed6e3`、`image:路径`（png/jpg/webp/gif 纹理或照片，cover 铺满）、`none`（透明） | 跟随 theme |
 | `--angle` | 渐变角度（度）；对所有渐变背景生效，**包括内置主题背景** | `135` |
 | `--ratio` | 画布比例：社媒（`og`/`linkedin`/`twitter`/`x`/`instagram`/`instagram-portrait`/`story`）、应用商店（`appstore-69`/`appstore-67`/`appstore-65`/`appstore-ipad`/`appstore-mac`/`play-phone`/`play-tablet`/`play-feature`/`ms-store`）或任意 `W:H` / `WxH`。**只扩画布不裁剪**，多出来的空间由背景填充 | 按内容 |
-| `--width` | 目标输出宽度（px）。**只缩小不放大**；成功时宽度精确等于该值，无法做到时**明确失败**（`config/width-too-small`）或用 `warnings` 说明，绝不静默给别的尺寸。实现方式是按目标宽度直接渲染（调整设备像素比），而不是先出 2x 再整图缩小。对 `--format pdf` 无效 | 内容的 2 倍 |
+| `--width` | 目标输出宽度（px）。**只缩小不放大**；成功时宽度精确等于该值，无法做到时**明确失败**（`config/width-too-small`）或用 `warnings` 说明，绝不静默给别的尺寸。实现方式是按目标宽度直接渲染（缩小时缩放 CSS 场景，放大时调整设备像素比），而不是先出 2x 再整图缩小。对 `--format pdf` 无效 | 内容的 2 倍 |
 | `--headline` | 画布顶部大字标题（随主题配色，字号按画布宽自适应，最多 2 行） | 不显示 |
 | `--subcopy` | 标题下方一行副文案 | 不显示 |
 | `--bleed` | 卡片底边出血：向下推出画布底缘裁掉——商店图"设备探出画面"的经典姿态。裸写 = 卡片高 10%，`--bleed 160` 指定 px | 关闭 |
@@ -44,3 +44,5 @@ node <SKILL_ROOT>/scripts/frame.js \
 
 
 退出码：0 成功；1 环境或运行错误；2 参数错误；3 输出尺寸不符。
+
+渲染使用临时文件，验证通过后再替换输出；失败保留已有结果。低于 1 倍的缩小采用 CSS 场景缩放与 DPR=1，避免浏览器钳制低设备像素比。

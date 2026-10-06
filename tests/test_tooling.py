@@ -20,6 +20,8 @@ class Workspace(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         self.work = Path(self.tmp.name)
         self.env = dict(os.environ)
+        self.env['GIT_CONFIG_NOSYSTEM'] = '1'
+        self.env['GIT_CONFIG_GLOBAL'] = os.devnull
         for agent in ('CODEX', 'CLAUDE', 'OPENCODE'):
             self.env[agent + '_SKILLS_DIR'] = str(self.work / agent.lower())
 
@@ -245,6 +247,20 @@ class CaptureTests(Workspace):
                                 '-o', self.work / 'out.png', '--json', *flags, code=2)
             self.assertEqual(json.loads(proc.stdout)['error']['code'], expected)
 
+    @unittest.skipIf(os.name == 'nt', 'POSIX executable fixture')
+    def test_frame_zero_exit_without_output_preserves_previous_image(self):
+        browser = self.work / 'ghost-browser'
+        browser.write_text('#!/bin/sh\nexit 0\n')
+        browser.chmod(0o755)
+        output = self.work / 'previous.png'
+        original = (ROOT / 'docs/screenshots/browser-example.png').read_bytes()
+        output.write_bytes(original)
+        proc = self.run_cli('node', ROOT / 'skills/kit-shotframe/scripts/frame.js',
+                            '--input', output, '--output', output, '--chromium', browser, '--json', code=1)
+        self.assertEqual(json.loads(proc.stdout)['error']['code'], 'output/missing')
+        self.assertEqual(output.read_bytes(), original)
+        self.assertFalse(list(self.work.glob('.kit-shotframe-*')))
+
 
 class GeneratorTests(Workspace):
     def test_generators_accept_sparse_data_and_escape_content(self):
@@ -271,6 +287,22 @@ class GeneratorTests(Workspace):
         data.write_text('invalid\n' + json.dumps({'full_name': 'a/b', 'topics': []}) + '\n')
         self.run_cli(sys.executable, ROOT / 'skills/kit-gh-stars/scripts/gen-index.py', data, out)
         self.assertIn('https://github.com/a/b', out.read_text())
+
+
+class SkillValidationTests(Workspace):
+    def test_copied_skill_validates_independently_and_detects_missing_resource(self):
+        copy = self.work / 'kit-capture'
+        shutil.copytree(ROOT / 'skills/kit-capture', copy)
+        validator = ROOT / 'tools/validate_skills.py'
+        self.run_cli(sys.executable, validator, '--skill', copy)
+        self.run_cli('bash', copy / 'scripts/capture.sh', '--help')
+        (copy / 'references/platforms.md').unlink()
+        self.run_cli(sys.executable, validator, '--skill', copy, code=1)
+
+    def test_directory_and_metadata_mismatch_fails(self):
+        copy = self.work / 'kit-renamed'
+        shutil.copytree(ROOT / 'skills/kit-capture', copy)
+        self.run_cli(sys.executable, ROOT / 'tools/validate_skills.py', '--skill', copy, code=1)
 
 
 if __name__ == '__main__':

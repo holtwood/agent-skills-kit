@@ -833,94 +833,76 @@ const MAX_OUTPUT_PIXELS = 120e6;      // 输出像素总量上限（≈120MP）
 // 像素校验不适用，改为校验 %PDF 文件头。
 function renderFrame({ chromium, html, output, cssW, cssH, scale, transparent, format }) {
   const tmpHtml = path.join(os.tmpdir(), `kit-shotframe-${process.pid}-${crypto.randomBytes(6).toString('hex')}.html`);
-  fs.writeFileSync(tmpHtml, html, { flag: 'wx', mode: 0o600 });
-  fs.mkdirSync(path.dirname(path.resolve(output)), { recursive: true });
-
+  const finalOutput = path.resolve(output);
+  fs.mkdirSync(path.dirname(finalOutput), { recursive: true });
+  const stageDir = fs.mkdtempSync(path.join(path.dirname(finalOutput), '.kit-shotframe-'));
+  const stageOutput = path.join(stageDir, `output.${format || 'png'}`);
   const expectedW = Math.round(cssW * scale);
   const expectedH = Math.round(cssH * scale);
-  // chrome-headless-shell（kit-capture 自举下载的无头壳）本身就是无头实现，
-  // 只认旧版 headless 开关，传 --headless=new 反而不兼容
   const isHeadlessShell = /headless-shell/i.test(path.basename(chromium));
 
-  if (format === 'pdf') {
-    const flags = [
-      ...(isHeadlessShell ? [] : ['--headless=new']),
-      '--disable-gpu',
-      '--no-sandbox',
-      // 去页眉页脚：新旧 headless 的开关名不同
-      isHeadlessShell ? '--print-to-pdf-no-header' : '--no-pdf-header-footer',
-      `--print-to-pdf=${path.resolve(output)}`,
-      pathToFileURL(tmpHtml).href,
-    ];
-    try {
-      execFileSync(chromium, flags, { stdio: 'ignore', timeout: 60000 });
-    } finally {
-      fs.rmSync(tmpHtml, { force: true });
-    }
-    let ok = false;
-    try {
-      ok = fs.readFileSync(path.resolve(output)).subarray(0, 5).toString('latin1') === '%PDF-';
-    } catch (_) { /* 读不到视为未产出 */ }
-    return {
-      reason: ok ? 'ok' : 'no-output',
-      verified: ok,
-      expectedW: cssW,
-      expectedH: cssH,
-      width: ok ? cssW : null,
-      height: ok ? cssH : null,
-    };
-  }
-
-  const renderOnce = (winW, winH) => {
-    const flags = [
-      ...(isHeadlessShell ? [] : ['--headless=new']),
-      '--disable-gpu',
-      '--no-sandbox',
-      '--hide-scrollbars',
-      `--force-device-scale-factor=${scale}`,
-      `--window-size=${winW},${winH}`,
-      `--screenshot=${path.resolve(output)}`,
-    ];
-    // 透明背景：Chromium 默认铺白底，需显式要求 0 alpha 的默认底色
-    if (transparent) flags.push('--default-background-color=00000000');
-    flags.push(pathToFileURL(tmpHtml).href);
-    execFileSync(chromium, flags, { stdio: 'ignore', timeout: 60000 });
-  };
-
-  let winW = cssW, winH = cssH;
-  let verified = false;
-  let actual = null;
+  // Chromium can clamp very low device scale factors (observed: 600x314 became 100x100).
+  // Scale the CSS scene for reductions and keep the browser at a stable DPR of 1.
+  const reduced = format !== 'pdf' && scale < 1;
+  const browserScale = reduced ? 1 : scale;
+  const viewportW = reduced ? expectedW : cssW;
+  const viewportH = reduced ? expectedH : cssH;
+  const renderHtml = reduced
+    ? html.replace('</style>', `body { zoom:${scale}; }\n</style>`)
+    : html;
+  fs.writeFileSync(tmpHtml, renderHtml, { flag: 'wx', mode: 0o600 });
+  const baseFlags = [
+    ...(isHeadlessShell ? [] : ['--headless=new']),
+    '--disable-gpu', '--no-sandbox', '--no-first-run', '--no-default-browser-check',
+  ];
   try {
+    if (format === 'pdf') {
+      execFileSync(chromium, [
+        ...baseFlags,
+        isHeadlessShell ? '--print-to-pdf-no-header' : '--no-pdf-header-footer',
+        `--print-to-pdf=${stageOutput}`, pathToFileURL(tmpHtml).href,
+      ], { stdio: 'ignore', timeout: 60000 });
+      let verified = false;
+      try { verified = fs.readFileSync(stageOutput).subarray(0, 5).toString('latin1') === '%PDF-'; }
+      catch (_) { /* No readable artifact. */ }
+      if (verified) fs.renameSync(stageOutput, finalOutput);
+      return { reason: verified ? 'ok' : 'no-output', verified,
+        expectedW: cssW, expectedH: cssH,
+        width: verified ? cssW : null, height: verified ? cssH : null };
+    }
+
+    const renderOnce = (winW, winH) => {
+      const flags = [...baseFlags, '--hide-scrollbars',
+        `--force-device-scale-factor=${browserScale}`, `--window-size=${winW},${winH}`,
+        `--screenshot=${stageOutput}`];
+      if (transparent) flags.push('--default-background-color=00000000');
+      flags.push(pathToFileURL(tmpHtml).href);
+      // A retry must produce a new file, not accidentally verify the prior attempt.
+      fs.rmSync(stageOutput, { force: true });
+      execFileSync(chromium, flags, { stdio: 'ignore', timeout: 60000 });
+    };
+    let winW = viewportW, winH = viewportH;
+    let verified = false, actual = null;
     for (let attempt = 0; attempt < 2; attempt++) {
       renderOnce(winW, winH);
       try {
-        const out = pngSize(fs.readFileSync(path.resolve(output)));
+        const out = pngSize(fs.readFileSync(stageOutput));
         actual = { w: out.w, h: out.h };
-      } catch (_) {
-        actual = null;
-        break;
-      }
+      } catch (_) { actual = null; break; }
       if (Math.abs(actual.w - expectedW) <= 1 && Math.abs(actual.h - expectedH) <= 1) {
         verified = true;
         break;
       }
-      // 按差值校正窗口尺寸后重试（防负值/过小值导致 Chromium 报错）
-      winW = Math.max(200, winW + Math.round(cssW - actual.w / scale));
-      winH = Math.max(200, winH + Math.round(cssH - actual.h / scale));
+      winW = Math.max(200, winW + Math.round(viewportW - actual.w / browserScale));
+      winH = Math.max(200, winH + Math.round(viewportH - actual.h / browserScale));
     }
+    if (verified) fs.renameSync(stageOutput, finalOutput);
+    return { reason: verified ? 'ok' : (actual ? 'size-mismatch' : 'no-output'), verified,
+      expectedW, expectedH, width: actual ? actual.w : null, height: actual ? actual.h : null };
   } finally {
     fs.rmSync(tmpHtml, { force: true });
+    fs.rmSync(stageDir, { recursive: true, force: true });
   }
-  // 区分三种结果，避免把「根本没产出文件」误报成「尺寸不符」
-  const reason = verified ? 'ok' : (actual ? 'size-mismatch' : 'no-output');
-  return {
-    reason,
-    verified,
-    expectedW,
-    expectedH,
-    width: actual ? actual.w : null,
-    height: actual ? actual.h : null,
-  };
 }
 
 // --all：把 --output 当基名，为每个背景预设派生一个文件名（out.png → out-aurora.png）
@@ -1149,7 +1131,7 @@ function main() {
     : typeof args.bleed === 'string' ? parseInt(args.bleed, 10) : 0;
   const shadowCss = resolveShadow(shadowArg, theme);
 
-  // --width：只缩小不放大。用设备像素比直接渲染到目标宽度（不做整图二次重采样）。
+  // --width：只缩小不放大。缩小时缩放 CSS 场景，放大时使用设备像素比（不做整图二次重采样）。
   // 缩放比有自己的下限，低于下限时**明确失败**而不是静默clamp
   // —— 否则 --width 100 会悄悄产出 322px，调用方以为拿到了 100px。
   const MIN_SCALE = 0.02;
@@ -1229,7 +1211,7 @@ function main() {
           output: path.resolve(target),
         });
       }
-      console.error(`${detail}（无头窗口可能被显示环境钳制）。输出文件仍已生成，请人工检查构图。`);
+      console.error(`${detail}（无头窗口可能被显示环境钳制）。新文件未交付，已有输出已保留。`);
       process.exit(3);
     }
     outputs.push({
