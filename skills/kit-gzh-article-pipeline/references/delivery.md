@@ -24,6 +24,8 @@
 
 排版机械层（中英文与数字间空格、标点全半角、重复标点）交给工具检查，不写进文字规则：在 `articles/` 工作区根放 `.zhlintrc` 固化本项目约定（如全角括号、`「」`直引），跑 `npx zhlint <article.md>`；基线标准是《中文文案排版指北》，句法底线参考阮一峰《中文技术文档的写作规范》。
 
+页面字体由主题全局容器声明系统无衬线字体栈（`-apple-system,BlinkMacSystemFont,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif`），本地预览与微信端渲染保持一致；禁止宋体/楷体/serif 等衬线栈（无字体声明或衬线栈会让 macOS 浏览器预览回退成宋体），禁止外部字体。`embed_images.py` 不再剥除 font-family；衬线/异体栈由 gzh-design 校验器警告。
+
 文风指纹交给 `scripts/prose_lint.py`：扫铺垫句式、段末信号词、翻译腔、互联网黑话、AI 元话语、时代开场、元叙述、夸大词、广告法风险词、虚胖量化、抽象名词化、过渡词堆叠、地区词/简繁混用、句首复读与句长方差，输出复查线索。各平台稿同样可以跑。命中不判失败（合法语境可以有这些词），`--strict` 才卡门禁；自定义词表用 `--dict` 追加。
 
 ## 完成条件

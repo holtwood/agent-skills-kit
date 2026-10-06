@@ -23,10 +23,9 @@ def process_html(article_dir, html_name="article-gzh.html", out_name="article-gz
     with open(src_path, "r", encoding="utf-8") as f:
         html = f.read()
 
-    # 1. 移除根容器或全局声明的非等宽 font-family（符合微信官方建议并消除警告）
-    html = re.sub(r'font-family:[^;\"}]+;?', '', html)
-
-    # 2. 确保所有非代码区的 CJK 文本都被 <span leaf=""> 包裹（先剥除已有 leaf 标签，再单层包裹，确保幂等不嵌套）
+    # 1. 确保所有非代码区的 CJK 文本都被 <span leaf=""> 包裹（先剥除已有 leaf 标签，再单层包裹，确保幂等不嵌套）
+    # 注：不剥 font-family —— 页面字体由主题容器的系统无衬线字体栈声明，
+    # 衬线/异体栈由 validate_gzh_html.py 负责警告，这里保留原样保证预览与粘贴一致。
     while re.search(r'<span leaf=\"\">(.*?)</span>', html, re.DOTALL):
         html = re.sub(r'<span leaf=\"\">(.*?)</span>', r'\1', html, flags=re.DOTALL)
 
@@ -46,7 +45,7 @@ def process_html(article_dir, html_name="article-gzh.html", out_name="article-gz
     with open(src_path, "w", encoding="utf-8") as f:
         f.write(clean_html)
 
-    # 3. 将相对图片路径替换为 Base64 Data URI
+    # 2. 将相对图片路径替换为 Base64 Data URI
     embedded_count = 0
     def replace_img(match):
         nonlocal embedded_count
