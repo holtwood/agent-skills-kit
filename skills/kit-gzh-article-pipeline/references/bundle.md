@@ -41,7 +41,7 @@ python3 <SKILL_ROOT>/scripts/article_bundle.py astro /path/to/article --json
 }
 ```
 
-- `platforms` 的每个对象有 `draft`、`title`、`summary`；母稿和各平台稿使用独立文件。初始化支持 wechat、astro、zhihu、toutiao，已有清单可加其他小写平台 ID。
+- `platforms` 的每个对象有 `draft`、`title`、`summary`（图文笔记与视频脚本还会带 `kind` 字段并检查必须的小节）；母稿和各平台稿使用独立文件。运行 `python3 <SKILL_ROOT>/scripts/article_bundle.py platforms` 可列出已登记的 16+ 个平台与 5 大分组（`wechat`、`longform`、`feed`、`notes`、`video`）；默认仅初始化主力母港 `wechat`，多平台任务通过 `--platforms <平台ID/分组名/all>` 显式指定；已有清单也可自行扩展。
 - `facts` 可为空；有条目时要求唯一 `id`、主张和来源。脚本只查记录完整，不验证来源是否支持主张，仍需人工核验。
 - `assets` 声明所有本次交付的素材路径与来源；脚本只检查这些文件存在且非空。编辑者另对照正文逐张查漏、解码和校验隐私，不能将漏声明误报为检查覆盖。
 - `must_keep` 是作者/编辑者明确要求逐字保留的短文本，如版本、引用、重要限制；未写 `targets` 则检查母稿和所有已选平台。它不是自动事实检测器，正常改写无需强制逐字一致。

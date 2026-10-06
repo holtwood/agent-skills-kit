@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "primary": "wechat",
+  "kinds": {
+    "article": {"label": "长图文", "sections": []},
+    "notes": {"label": "图文笔记/卡片", "sections": ["标题", "正文", "话题", "卡片"]},
+    "video": {"label": "视频脚本", "sections": ["标题", "简介", "口播稿", "画面"]}
+  },
+  "families": {
+    "wechat": {"label": "微信公众号（主力）", "guide": "references/delivery.md"},
+    "longform": {"label": "长文与技术社区", "guide": "references/platforms/longform.md"},
+    "feed": {"label": "资讯分发", "guide": "references/platforms/feed.md"},
+    "notes": {"label": "图文笔记", "guide": "references/platforms/notes.md"},
+    "video": {"label": "视频", "guide": "references/platforms/video.md"}
+  },
+  "platforms": [
+    {"id": "wechat", "name": "微信公众号", "family": "wechat", "kind": "article", "draft": "article-wechat.md", "cover": "1800×766 头图 + 1:1 次图"},
+    {"id": "wechat-tietu", "name": "微信贴图", "family": "notes", "kind": "notes", "draft": "notes-wechat-tietu.md", "cover": "3:4 或 1:1 卡片组"},
+    {"id": "astro", "name": "个人博客（Astro）", "family": "longform", "kind": "article", "draft": "article-astro-body.md", "cover": "按站点 schema"},
+    {"id": "zhihu", "name": "知乎", "family": "longform", "kind": "article", "draft": "article-zhihu.md", "cover": "横版题图"},
+    {"id": "csdn", "name": "CSDN", "family": "longform", "kind": "article", "draft": "article-csdn.md", "cover": "横版封面（可选）"},
+    {"id": "juejin", "name": "掘金", "family": "longform", "kind": "article", "draft": "article-juejin.md", "cover": "横版封面（可选）"},
+    {"id": "cnblogs", "name": "博客园", "family": "longform", "kind": "article", "draft": "article-cnblogs.md", "cover": "通常不需要"},
+    {"id": "jianshu", "name": "简书", "family": "longform", "kind": "article", "draft": "article-jianshu.md", "cover": "正文首图"},
+    {"id": "toutiao", "name": "今日头条", "family": "feed", "kind": "article", "draft": "article-toutiao.md", "cover": "单图或三图横版"},
+    {"id": "baijiahao", "name": "百家号", "family": "feed", "kind": "article", "draft": "article-baijiahao.md", "cover": "单图或三图横版"},
+    {"id": "sohu", "name": "搜狐号", "family": "feed", "kind": "article", "draft": "article-sohu.md", "cover": "横版封面"},
+    {"id": "netease", "name": "网易号", "family": "feed", "kind": "article", "draft": "article-netease.md", "cover": "横版封面"},
+    {"id": "xiaohongshu", "name": "小红书", "family": "notes", "kind": "notes", "draft": "notes-xiaohongshu.md", "cover": "3:4 竖版卡片组"},
+    {"id": "douyin", "name": "抖音", "family": "video", "kind": "video", "draft": "script-douyin.md", "cover": "9:16 竖版封面"},
+    {"id": "bilibili", "name": "哔哩哔哩", "family": "video", "kind": "video", "draft": "script-bilibili.md", "cover": "16:9 横版封面"},
+    {"id": "channels", "name": "微信视频号", "family": "video", "kind": "video", "draft": "script-channels.md", "cover": "竖版或横版，随视频"}
+  ]
+}

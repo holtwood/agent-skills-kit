@@ -9,15 +9,30 @@ import sys
 from pathlib import Path
 
 SKILL_ROOT = Path(__file__).resolve().parent.parent
-PLATFORMS = ("wechat", "astro", "zhihu", "toutiao")
+REGISTRY = json.loads((SKILL_ROOT / "assets/platforms.json").read_text(encoding="utf-8"))
+PLATFORM_INFO = {item["id"]: item for item in REGISTRY["platforms"]}
+PLATFORMS = tuple(PLATFORM_INFO)
+PRIMARY = REGISTRY["primary"]
+KIND_SECTIONS = {name: kind["sections"] for name, kind in REGISTRY["kinds"].items()}
 SCAFFOLD = "<!-- kit:scaffold -->"
+
+
+def scaffold_for(kind: str) -> str:
+    sections = KIND_SECTIONS.get(kind, [])
+    return SCAFFOLD + "\n" + "".join(f"\n## {name}\n" for name in sections)
+
+
+def missing_sections(text: str, kind: str) -> list[str]:
+    headings = {m.group(1).strip() for m in re.finditer(r"^#{1,3}\s+(.+?)\s*$", text, flags=re.M)}
+    return [name for name in KIND_SECTIONS.get(kind, []) if name not in headings]
 
 
 def local_path(root: Path, value: str) -> Path:
     if not isinstance(value, str) or not value or Path(value).is_absolute():
         raise ValueError("文件路径必须为工作区内的相对路径")
-    path = (root / value).resolve()
-    if not path.is_relative_to(root) or path == root:
+    base = root.resolve()
+    path = (base / value).resolve()
+    if not path.is_relative_to(base) or path == base:
         raise ValueError(f"路径越出工作区或不是文件: {value}")
     return path
 
@@ -52,6 +67,13 @@ def load_bundle(root: Path) -> dict:
     return data
 
 
+def platform_kind(name: str, item: dict) -> str:
+    kind = item.get("kind") or PLATFORM_INFO.get(name, {}).get("kind", "article")
+    if kind not in KIND_SECTIONS:
+        raise ValueError(f"{name}.kind 未知: {kind}")
+    return kind
+
+
 def check(root: Path, data: dict, selected: list[str]) -> list[str]:
     errors, texts = [], {}
     for name in selected:
@@ -65,6 +87,11 @@ def check(root: Path, data: dict, selected: list[str]) -> list[str]:
             texts[name] = text
             if SCAFFOLD in text or not re.sub(r"<!--.*?-->", "", text, flags=re.S).strip():
                 errors.append(f"{relative}: 尚未完成正文")
+            elif name != "master":
+                kind = platform_kind(name, data["platforms"][name])
+                missing = missing_sections(text, kind)
+                if missing:
+                    errors.append(f"{relative}: {kind} 稿缺少小节 {'、'.join(missing)}")
         except (OSError, ValueError) as exc:
             errors.append(f"{relative}: {exc}")
     for name in selected:
@@ -123,11 +150,14 @@ def initialize(root: Path, slug: str, platforms: list[str]) -> list[str]:
     files = {"article.md": SCAFFOLD + "\n", "brief.md":
              (SKILL_ROOT / "assets/article-brief.md").read_text(encoding="utf-8")}
     for name in platforms:
-        filename = "article-astro-body.md" if name == "astro" else f"article-{name}.md"
-        data["platforms"][name] = {"draft": filename, "title": "", "summary": ""}
+        info = PLATFORM_INFO.get(name)
+        if not info:
+            raise ValueError(f"未登记的平台: {name}（在 assets/platforms.json 添加，或在已有 bundle.json 手动声明）")
+        filename = info["draft"]
+        data["platforms"][name] = {"draft": filename, "kind": info["kind"], "title": "", "summary": ""}
         if name == "astro":
             data["platforms"][name]["frontmatter"] = {"title": "", "description": "", "draft": True}
-        files[filename] = SCAFFOLD + "\n"
+        files[filename] = scaffold_for(info["kind"])
     files["bundle.json"] = json.dumps(data, ensure_ascii=False, indent=2) + "\n"
     # Preflight every destination before creating anything; preserve existing articles.
     for filename in files:
@@ -182,27 +212,55 @@ def export_astro(root: Path, data: dict, output: str) -> str:
     return str(path)
 
 
+def expand_platforms(values: list[str]) -> list[str]:
+    """Accept platform IDs, family names (e.g. longform) or `all`; keep the primary first."""
+    out = []
+    for value in values:
+        if value == "all":
+            out += list(PLATFORMS)
+        elif value in REGISTRY["families"]:
+            out += [p for p, info in PLATFORM_INFO.items() if info["family"] == value]
+        elif value in PLATFORM_INFO:
+            out.append(value)
+        else:
+            raise ValueError(f"未知平台或分组: {value}；可用 `platforms` 子命令查看")
+    out = list(dict.fromkeys(out))
+    return sorted(out, key=lambda p: p != PRIMARY)
+
+
+def list_platforms() -> dict:
+    return {"ok": True, "command": "platforms", "primary": PRIMARY,
+            "families": {name: fam["label"] for name, fam in REGISTRY["families"].items()},
+            "platforms": [{k: info[k] for k in ("id", "name", "family", "kind", "draft")}
+                          for info in REGISTRY["platforms"]]}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
+    listing = sub.add_parser("platforms", help="列出已登记平台、分组与稿件文件名")
     init = sub.add_parser("init", help="创建带待写标记的工作区，不覆盖已有文件")
     init.add_argument("directory", type=Path)
     init.add_argument("--slug", required=True)
-    init.add_argument("--platforms", nargs="+", choices=PLATFORMS, default=list(PLATFORMS))
+    init.add_argument("--platforms", nargs="+", default=[PRIMARY],
+                      help=f"平台 ID、分组名（{'/'.join(REGISTRY['families'])}）或 all；默认只建主力平台 {PRIMARY}")
     verify = sub.add_parser("check", help="检查清单、正文、声明素材和保护文字")
     verify.add_argument("directory", type=Path)
     verify.add_argument("--platforms", nargs="+")
     astro = sub.add_parser("astro", help="从清单和 body 生成 Astro Markdown；不写入网站")
     astro.add_argument("directory", type=Path)
     astro.add_argument("--output", default="article-astro.md")
-    for command in (init, verify, astro):
+    for command in (listing, init, verify, astro):
         command.add_argument("--json", action="store_true")
     args = parser.parse_args()
+    if args.command == "platforms":
+        print(json.dumps(list_platforms(), ensure_ascii=False, indent=None if args.json else 2))
+        return 0
     result = {"ok": False, "command": args.command, "publication": "not-attempted"}
     try:
         root = args.directory.resolve()
         if args.command == "init":
-            result["files"] = initialize(root, args.slug, args.platforms)
+            result["files"] = initialize(root, args.slug, expand_platforms(args.platforms))
         else:
             data = load_bundle(root)
             if args.command == "check":

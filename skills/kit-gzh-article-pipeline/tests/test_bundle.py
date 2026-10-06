@@ -28,7 +28,14 @@ class BundleTests(unittest.TestCase):
         (self.root / "article.md").write_text(self.body, encoding="utf-8")
         for name, target in self.data["platforms"].items():
             target.update(title="教学示例", summary="展示操作与当前限制。")
-            (self.root / target["draft"]).write_text(self.body, encoding="utf-8")
+            kind = target.get("kind", "article")
+            if kind == "notes":
+                content = "## 标题\n\n教学示例\n\n## 正文\n\n仅支持 CSV。\n\n## 话题\n\n#开发\n\n## 卡片\n\n卡片1\n"
+            elif kind == "video":
+                content = "## 标题\n\n教学示例\n\n## 简介\n\n仅支持 CSV。\n\n## 口播稿\n\n大家好。\n\n## 画面\n\n演示。\n"
+            else:
+                content = self.body
+            (self.root / target["draft"]).write_text(content, encoding="utf-8")
         (self.root / "img/sample.png").write_bytes(b"fixture, not a real screenshot")
         self.data["assets"] = [{"path": "img/sample.png", "source": "test fixture"}]
         self.data["facts"] = [{"id": "F1", "statement": "仅支持 CSV", "source": "test fixture"}]
@@ -141,6 +148,32 @@ class BundleTests(unittest.TestCase):
             BUNDLE.export_astro(self.root, self.data, "elsewhere/new.md")
         with self.assertRaises(ValueError):
             BUNDLE.check(self.root, self.data, ["missing-platform"])
+
+    def test_expand_platforms_and_primary_default(self):
+        expanded = BUNDLE.expand_platforms(["longform", "douyin"])
+        self.assertIn("wechat", [BUNDLE.PRIMARY])
+        self.assertIn("zhihu", expanded)
+        self.assertIn("csdn", expanded)
+        self.assertIn("douyin", expanded)
+        all_platforms = BUNDLE.expand_platforms(["all"])
+        self.assertEqual(len(all_platforms), len(BUNDLE.PLATFORMS))
+        self.assertEqual(all_platforms[0], BUNDLE.PRIMARY)
+
+    def test_cli_platforms_command(self):
+        result = subprocess.run([sys.executable, str(SCRIPT), "platforms", "--json"],
+                                capture_output=True, text=True, encoding="utf-8")
+        self.assertEqual(result.returncode, 0)
+        data = json.loads(result.stdout)
+        self.assertTrue(data["ok"])
+        self.assertEqual(data["primary"], "wechat")
+        self.assertIn("longform", data["families"])
+        self.assertTrue(any(p["id"] == "xiaohongshu" for p in data["platforms"]))
+
+    def test_missing_sections_detected_for_notes_and_video(self):
+        notes_draft = self.root / self.data["platforms"]["xiaohongshu"]["draft"]
+        notes_draft.write_text("## 标题\n\n缺少其他段落\n", encoding="utf-8")
+        errors = BUNDLE.check(self.root, self.data, ["xiaohongshu"])
+        self.assertTrue(any("notes 稿缺少小节" in err for err in errors))
 
 
 if __name__ == "__main__":

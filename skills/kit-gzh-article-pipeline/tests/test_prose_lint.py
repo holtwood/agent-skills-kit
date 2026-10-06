@@ -122,6 +122,24 @@ class ProseLintTests(unittest.TestCase):
         r = self.run_lint()
         self.assertIn("AI 元话语", r.stdout)
 
+    def test_era_opener_and_meta_narration(self):
+        self.write("随着人工智能技术的飞速发展，开发者越来越忙。本文将介绍一个小工具。\n")
+        r = self.run_lint()
+        self.assertIn("时代开场", r.stdout)
+        self.assertIn("元叙述", r.stdout)
+
+    def test_hype_and_ad_law_words(self):
+        self.write("这是一个革命性的工具，效果 100% 保证，全网第一。\n")
+        r = self.run_lint()
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("夸大词", r.stdout)
+        self.assertIn("广告法风险", r.stdout)
+
+    def test_plain_development_sentence_not_era_opener(self):
+        self.write("项目发展到第二版时，我把导出功能拆了出来。\n")
+        r = self.run_lint()
+        self.assertNotIn("时代开场", r.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()

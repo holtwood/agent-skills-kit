@@ -132,6 +132,21 @@ md2wechat 的知乎/头条能力按上游 [跨平台工作流](https://github.co
   - 想法层同质化实证：[CST 研究](https://arxiv.org/html/2402.01536)（ChatGPT 用户点子更雷同且归属感更低）、[Sui Generis](https://www.pnas.org/doi/10.1073/pnas.2504966122)（PNAS，LLM 情节点跨代重复）、diversity growth rate 度量——观点与意外必须来自作者材料与采访，AI 只负责说清楚。「想法的所有权在作者」已写入 writing.md。
   - 国外 skill 参照：[content-research-writer](https://raw.githubusercontent.com/ComposioHQ/awesome-claude-skills/master/content-research-writer/SKILL.md)（协作大纲/钩子/分节反馈）、[crafting-portfolio-essays](https://github.com/lucasyhzhu-debug/crafting-portfolio-essays)（「声音不是发明的是提取的」——先问样稿与口述再写，六种 essay 原型）。
 
+## 补记（2026-10-06 第三轮：瘦身与平台补全）
+
+- writing.md 原先夹带大量研究引用（RAID、MT-Bench、SynthID、OpenAI 分类器、JCSA、WritingBench、Self-Correction Blind Spot 等），每次写作都要加载却不产生动作。本轮把 writing.md 收敛为可执行规则，研究依据统一留在本文件。此前只在 writing.md 出现的依据补记于此：Doshi & Hauser（Science Advances 2024）——拿到 AI 点子的作者单篇评分更高、彼此更相似；后续研究（Elsevier S294988212500091X）显示调参数、改提示词弥合不了这一差距。
+- 按 writing.md 自己的「规则须具体到可匹配」原则，新增「看见 X，换成 Y」替换表与 6 组 before/after 改写样例；prose_lint 同步新增时代开场、元叙述、夸大词、广告法风险四类检查。
+- 消除矛盾：原文「采访与口述环节不可省略」与「不要求每阶段确认、能推断的不问」冲突，改为缺材料时采访，用户只要润色或不愿被打断时不阻塞，并在交付说明标出缺作者材料的段落。
+- 去掉对单篇文章（西瓜碰碰乐）的隐式引用，样例改为自足的教学文本。
+- 平台：新增搜狐号（`article_bundle.py init` 支持 `sohu`），platforms.md 增加分平台标题/开篇、站外引流、原创与首发顺序、全平台 AI 声明与广告法用词、富文本粘贴格式；简报模板新增发布记录表。
+
+## 补记（2026-10-06 第四轮：全矩阵平台设计与主力公众号母港架构）
+
+针对用户全平台分发诉求（CSDN、掘金、独立博客、博客园、简书、今日头条、百家号、搜狐号、小红书、微信贴图/卡片、抖音、B站、视频号等）：
+- **母港与载体分型**：确立以微信公众号为核心主力母港（生成唯一事实母稿与最高精度排版），其他平台按 4 大载体形态（长文技术社区 `longform`、资讯分发 `feed`、图文笔记 `notes`、视听视频脚本 `video`）从母稿派生降维，编写了对应的模块化指南（`longform.md`、`feed.md`、`notes.md`、`video.md`）。
+- **统一平台注册表**：抽离 `assets/platforms.json`，集中管理 16+ 个平台、分组、产物名、封面规格及结构约定。
+- **工程脚本升级**：`article_bundle.py` 默认仅创建主力母港 `wechat`，通过 `--platforms` 支持指定单个平台、分组名（如 `longform`）或 `all`；新增 `platforms` 子命令展示全量清单；对笔记与视频类稿件新增结构化小节完整性校验（标题、正文、话题、卡片 / 标题、简介、口播稿、画面）。新增 3 个回归测试，16 个测试全数通过。
+
 ## 验证记录
 
 本次新脚本 13 个回归用例通过，覆盖已有文章保护、脚手架未完成状态、单平台交付、保护文字丢失、事实记录来源、素材缺失、路径越界、独立稿件和 Astro 元数据/正文保留。`python3 tools/check.py` 的完整离线检查通过，仓库技能验证、官方 skill-creator 验证与 `git diff --check` 通过。此次离线入口跳过 3 个既有浏览器回归和 1 个需真实文章输入的集成用例。
