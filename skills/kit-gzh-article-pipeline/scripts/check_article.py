@@ -47,6 +47,7 @@ FORBIDDEN_TEXT = [
 ]
 PLACEHOLDER_RE = re.compile(r"\{\{[^}]*\}\}")
 FORBIDDEN_TAGS = {"script", "iframe", "link", "object", "embed"}
+IGNORED_TEXT_TAGS = {"head", "style", "script", "template", "noscript"}
 MIN_TEXT_LEN = 50
 # data URI 必须显式声明 base64 与受支持的图片 MIME
 DATA_URI_RE = re.compile(r"^data:image/(png|jpeg|jpg|gif|webp);base64,([A-Za-z0-9+/=\r\n]+)$")
@@ -83,7 +84,7 @@ class PageParser(HTMLParser):
     def handle_starttag(self, tag, attrs):
         t = tag.lower()
         self.tags.add(t)
-        if t in ("style", "script"):
+        if t in IGNORED_TEXT_TAGS:
             self._skip += 1
         if t == "img":
             d = dict(attrs)
@@ -91,9 +92,10 @@ class PageParser(HTMLParser):
 
     def handle_startendtag(self, tag, attrs):
         self.handle_starttag(tag, attrs)
+        self.handle_endtag(tag)
 
     def handle_endtag(self, tag):
-        if tag in ("style", "script") and self._skip:
+        if tag in IGNORED_TEXT_TAGS and self._skip:
             self._skip -= 1
 
     def handle_data(self, data):

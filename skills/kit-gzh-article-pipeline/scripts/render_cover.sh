@@ -73,8 +73,27 @@ CHECK_BASE="$(mktemp "$ABS_DIR/.wf-check.XXXXXX")"
 CHECK_FILE="$CHECK_BASE.html"
 mv "$CHECK_BASE" "$CHECK_FILE"
 DUMP_FILE="$(mktemp "$ABS_DIR/.wf-dump.XXXXXX")"
-FULL_FILE="$(mktemp "$ABS_DIR/.wf-full.XXXXXX")"
+FULL_BASE="$(mktemp "$ABS_DIR/.wf-full.XXXXXX")"
+FULL_FILE="$FULL_BASE.png"
+mv "$FULL_BASE" "$FULL_FILE"
 trap 'rm -f "$CHECK_FILE" "$DUMP_FILE" "$FULL_FILE"' EXIT
+
+# Bound each browser call; headless exit 0 alone is not success.
+run_chrome() {
+  python3 - "$CHROME" "$@" <<'PYCHROME'
+import subprocess, sys
+try:
+    p = subprocess.run([sys.argv[1], '--no-first-run', '--no-default-browser-check',
+                        '--no-sandbox', '--force-device-scale-factor=1', *sys.argv[2:]],
+                       stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=45)
+    sys.stdout.buffer.write(p.stdout)
+    if p.returncode:
+        sys.stderr.buffer.write(p.stderr[-2000:])
+        sys.exit(1)
+except (OSError, subprocess.TimeoutExpired) as exc:
+    sys.exit(f'✗ Chrome 调用失败: {exc}')
+PYCHROME
+}
 
 # ---- 布局实测：注入测量脚本，dump-dom 取回 getBoundingClientRect / 图片加载 / 占位符 ----
 python3 - "$ABS_DIR" "$CHECK_FILE" <<'PY'
@@ -97,8 +116,8 @@ import re
 pathlib.Path(sys.argv[2]).write_text(re.sub(r"</body>", lambda m: inject + m.group(0), t, count=1, flags=re.I) if "</body>" in low else t + inject,
                                   encoding="utf-8")
 PY
-DUMP=$("$CHROME" --headless=new --disable-gpu --dump-dom --virtual-time-budget=10000 \
-       "file://$CHECK_FILE" 2>/dev/null || true)
+DUMP=$(run_chrome --headless=new --disable-gpu --dump-dom --virtual-time-budget=10000 \
+       "file://$CHECK_FILE")
 printf '%s' "$DUMP" > "$DUMP_FILE"
 python3 - "$DUMP_FILE" <<'PY'
 import json, re, sys, pathlib
@@ -123,9 +142,9 @@ print("✅ 布局实测通过: 头图 1800×766 / 方形 1000×1000@774 / 图片
 PY
 
 # ---- 渲染与裁切（窗口尺寸检查保留作辅助；真正的布局信任来自上面的 DOM 实测） ----
-"$CHROME" --headless=new --disable-gpu --hide-scrollbars \
+run_chrome --headless=new --disable-gpu --hide-scrollbars \
   --screenshot="$FULL_FILE" --window-size=1800,1780 \
-  "file://$ABS_DIR/cover.html" 2>/dev/null
+  "file://$ABS_DIR/cover.html"
 
 python3 - "$ABS_DIR" "$FULL_FILE" <<'PY'
 import sys

@@ -22,8 +22,15 @@ def run(command, env=None):
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--render", action="store_true", help="运行真实浏览器测试；需可用 Chromium")
+    parser.add_argument("--render-only", action="store_true", help="只运行真实封面与截图测试")
     args = parser.parse_args()
     try:
+        if args.render_only:
+            env = dict(os.environ)
+            env.pop("KIT_SKIP_BROWSER_TESTS", None)
+            run([sys.executable, "skills/kit-gzh-article-pipeline/tests/regression.py", "CoverTests"], env=env)
+            run([sys.executable, "tests/render_smoke.py"], env=env)
+            return 0
         run([sys.executable, "tools/validate_skills.py"])
         for path in sorted(ROOT.rglob("*.py")):
             if ".git" not in path.parts and "node_modules" not in path.parts:
@@ -44,6 +51,7 @@ def main() -> int:
         else:
             env.pop("KIT_SKIP_BROWSER_TESTS", None)
         run([sys.executable, "skills/kit-gzh-article-pipeline/tests/regression.py"], env=env)
+        run([sys.executable, "skills/kit-gzh-article-pipeline/tests/test_bundle.py"])
         if args.render:
             run([sys.executable, "tests/render_smoke.py"])
     except (OSError, SyntaxError, subprocess.CalledProcessError) as exc:

@@ -15,7 +15,7 @@
 | [`kit-project-hub`](./skills/kit-project-hub/) | Your repos → navigation site, featured section + weekly data sync |
 | [`kit-wechat-miniapp-ui-optimizer`](./skills/kit-wechat-miniapp-ui-optimizer/) | Native WeChat mini-program UI audit: WXML/WXSS, pages/components, themes, safe areas, assets, and states |
 | [`kit-wechat-minigame-ui-optimizer`](./skills/kit-wechat-minigame-ui-optimizer/) | WeChat minigame Canvas UI audit: HUD, touch hit areas, resolution scaling, sprites, states, and frame-rate clues |
-| [`kit-gzh-article-pipeline`](./skills/kit-gzh-article-pipeline/) | Product articles for WeChat: evidence, real screenshots, cover, archive/embedded HTML, and validation; enter only the needed stages |
+| [`kit-gzh-article-pipeline`](./skills/kit-gzh-article-pipeline/) | Chinese product/technical writing: evidence, author voice, editing, WeChat / Astro / Zhihu / Toutiao variants and delivery checks |
 
 ## Install
 
@@ -70,6 +70,7 @@ Local checks and CI share this entry point. Browser fixtures are local; GitHub m
 
 - [docs/SKILL-TEMPLATE.md](./docs/SKILL-TEMPLATE.md): conventions for adding a skill
 - [docs/RECOMMENDED-SKILLS.md](./docs/RECOMMENDED-SKILLS.md): third-party skills worth watching (links only)
+- [docs/WRITING-SKILLS-RESEARCH.md](./docs/WRITING-SKILLS-RESEARCH.md): Chinese writing research, reviewed revisions and integration decisions (Chinese)
 
 ## License
 

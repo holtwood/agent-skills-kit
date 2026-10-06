@@ -15,7 +15,7 @@
 | [`kit-project-hub`](./skills/kit-project-hub/) | 名下仓库 → 导航站，精选区 + 每周数据同步 |
 | [`kit-wechat-miniapp-ui-optimizer`](./skills/kit-wechat-miniapp-ui-optimizer/) | 原生微信小程序 UI 诊断：WXML/WXSS、页面/组件、主题、安全区、资源与状态 |
 | [`kit-wechat-minigame-ui-optimizer`](./skills/kit-wechat-minigame-ui-optimizer/) | 微信小游戏 Canvas UI 诊断：HUD、触摸命中区、分辨率适配、贴图、状态与帧率线索 |
-| [`kit-gzh-article-pipeline`](./skills/kit-gzh-article-pipeline/) | 自有产品公众号文章：事实底稿、真实截图、封面、双份 HTML 与终检，按所需阶段进入 |
+| [`kit-gzh-article-pipeline`](./skills/kit-gzh-article-pipeline/) | 中文产品/技术文章：事实与作者声音、中文审校、公众号 / Astro / 知乎 / 头条适配、素材与交付检查 |
 
 ## 安装
 
@@ -51,6 +51,8 @@ node skills/kit-shotframe/scripts/frame.js --input page.png --preset device --de
 
 ## 原则
 
+中文写作可以直接说：「用 kit-gzh-article-pipeline 把这些产品材料写成文章，保持个人开发者的自然表达，分别交付公众号、Astro、知乎和头条版本。」只需要改稿或一个平台时，技能只进入对应阶段。外部能力与选择依据见 [写作技能调研](./docs/WRITING-SKILLS-RESEARCH.md)。
+
 - **真实证据**：截图和仓库数据来自真实输入，文章功能与经历有依据；套框使用确定性渲染
 - **零依赖优先**：只用系统工具；例外按需自举到缓存目录，不进项目依赖
 - **独立分发**：技能脚本不引用兄弟目录；编排技能按需使用外部能力，并说明缺失时能交付什么
@@ -70,6 +72,7 @@ python3 tools/check.py --render        # 增加真实 Chromium 渲染，需本�
 
 - [docs/SKILL-TEMPLATE.md](./docs/SKILL-TEMPLATE.md)：新增 skill 的编写规范
 - [docs/RECOMMENDED-SKILLS.md](./docs/RECOMMENDED-SKILLS.md)：值得关注的外部 skill（只记链接）
+- [docs/WRITING-SKILLS-RESEARCH.md](./docs/WRITING-SKILLS-RESEARCH.md)：中文写作与多平台技能调研、审查版本及接入取舍
 
 ## 许可
 
